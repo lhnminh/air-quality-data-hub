@@ -8,6 +8,48 @@ import duckdb
 DATABASE_PATH = Path(__file__).parent / "data" / "airtrace.duckdb"
 
 
+def get_recent_observations(
+    limit: int = 20, database_path: Path | None = None
+) -> list[dict[str, Any]]:
+    """Return recent air-quality rows in a browser-friendly format."""
+    path = database_path or DATABASE_PATH
+    if not path.exists():
+        return []
+
+    safe_limit = min(max(limit, 1), 100)
+
+    with duckdb.connect(str(path), read_only=True) as connection:
+        rows = connection.execute(
+            """
+            SELECT
+                source,
+                strftime(
+                    timezone('UTC', collected_at),
+                    '%Y-%m-%dT%H:%M:%SZ'
+                ) AS collected_at,
+                strftime(
+                    timezone('UTC', observed_at),
+                    '%Y-%m-%dT%H:%M:%SZ'
+                ) AS observed_at,
+                city,
+                state,
+                country,
+                longitude,
+                latitude,
+                aqi_us,
+                main_pollutant
+            FROM iqair_observations
+            ORDER BY observed_at DESC
+            LIMIT ?
+            """,
+            [safe_limit],
+        ).fetchall()
+
+        column_names = [column[0] for column in connection.description]
+
+    return [dict(zip(column_names, row)) for row in rows]
+
+
 def save_iqair_observation(result: dict[str, Any]) -> bool:
     data = result["data"]
     pollution = data["current"]["pollution"]

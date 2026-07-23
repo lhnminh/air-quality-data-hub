@@ -152,6 +152,33 @@ uv run airtrace collect
 
 This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run datahub ingest -c ingestion/duckdb.yml` for metadata ingestion.
 
+### Run the dashboard prototype
+
+The browser cannot read a DuckDB file directly, so the project now includes a
+small Python API in `api.py`. Use two terminal windows:
+
+**Terminal 1 — start the Python API from the main project folder:**
+
+```bash
+uv run uvicorn api:app --reload --port 8000
+```
+
+**Terminal 2 — start the frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open <http://localhost:3000>. The dashboard says **Reading DuckDB** when
+the API returned stored observations. If the API is unavailable or the database
+is empty, it says **Demo data** and uses the clearly labeled values in
+`frontend/app/mock-data.ts`.
+
+The API only reads the database. Run `uv run python main.py` separately whenever
+you want to collect and save a new IQAir observation.
+
 ## Data required
 
 | Dataset | Minimum fields | Purpose |

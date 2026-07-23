@@ -60,3 +60,14 @@ def test_table_is_visible_through_sqlalchemy(temporary_database):
         assert "iqair_observations" in inspect(engine).get_table_names()
     finally:
         engine.dispose()
+
+
+def test_get_recent_observations(temporary_database):
+    observations = database.get_recent_observations(
+        database_path=temporary_database
+    )
+
+    assert len(observations) == 1
+    assert observations[0]["city"] == "Hanoi"
+    assert observations[0]["aqi_us"] == 90
+    assert observations[0]["main_pollutant"] == "p2"
