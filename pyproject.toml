@@ -3,5 +3,7 @@ name = "air-quality-data-hub"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.13"
-dependencies = []
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "datahub>=0.999.1",
+]
