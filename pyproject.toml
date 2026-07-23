@@ -5,6 +5,17 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
+    "acryl-datahub[sqlalchemy]>=1.6.0.15",
     "datahub>=0.999.1",
+    "duckdb>=1.5.5",
+    "duckdb-engine>=0.17.0",
     "python-dotenv>=1.2.2",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
 ]

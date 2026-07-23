@@ -110,9 +110,19 @@ The browser does not connect directly to DataHub or external data feeds. The bac
 - **Map tiles and locations:** OpenStreetMap
 - **Live experience:** backend polling plus browser updates every 10–30 seconds during the demo
 - **Agent context:** DataHub MCP Server or Agent Context Kit
-- **Deployment:** one frontend service and one API service
+- **Judging deployment:** Vercel-hosted frontend and Python API functions
 
 The hackathon demo can replay timestamped observations as a live event while using the same interfaces intended for real near-real-time feeds.
+
+### Judging deployment target
+
+The public judging demo will be deployed on Vercel. Architecture and dependency choices must therefore remain compatible with Vercel's frontend and Python function runtimes.
+
+The project is currently pinned to Python 3.11 for local development. Vercel's Python runtime currently supports Python 3.12, 3.13, and 3.14, so the project must move to a supported version and revalidate its dependencies before deployment.
+
+DuckDB remains the local development and replay database. Vercel Functions do not provide a persistent writable filesystem, so a deployed workflow that collects or modifies data must use an external persistent database or object store. API keys and other credentials will be configured through Vercel environment variables rather than deployed `.env` files.
+
+DataHub is a separate service and must be reachable from the Vercel deployment. The local DataHub quickstart supports development, while the judging deployment will require a hosted DataHub endpoint or another publicly reachable deployment.
 
 ## Data required
 
@@ -210,7 +220,8 @@ The demo replays timestamped events as a live stream. Production feeds would be 
 - Accessible traffic-data source or synthetic traffic generator
 - Notification and inspection-task destinations
 - Local DataHub OSS versus hosted DataHub
-- LLM provider and deployment target
+- Vercel-compatible persistent database or object store
+- LLM provider
 
 ## Hackathon fit
 

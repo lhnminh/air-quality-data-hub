@@ -3,7 +3,10 @@ import os
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
+
 from dotenv import load_dotenv
+
+from database import DATABASE_PATH, save_iqair_observation
 
 load_dotenv()
 
@@ -35,6 +38,11 @@ def main():
         raise SystemExit(f"Could not reach IQAir: {error.reason}") from None
 
     print(json.dumps(result, indent=2))
+
+    if save_iqair_observation(result):
+        print(f"Saved observation to {DATABASE_PATH}")
+    else:
+        print("Observation already exists; nothing new was saved")
 
 
 if __name__ == "__main__":
