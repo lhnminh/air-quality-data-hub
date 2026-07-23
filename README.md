@@ -124,6 +124,34 @@ DuckDB remains the local development and replay database. Vercel Functions do no
 
 DataHub is a separate service and must be reachable from the Vercel deployment. The local DataHub quickstart supports development, while the judging deployment will require a hosted DataHub endpoint or another publicly reachable deployment.
 
+### Planned local command interface
+
+AirTrace will expose separate commands for setup, collection, inspection, and metadata synchronization instead of running DataHub ingestion every time the application starts:
+
+```bash
+uv run airtrace setup
+uv run airtrace collect
+uv run airtrace inspect
+uv run airtrace sync-datahub
+```
+
+- `setup` creates the empty database schema without requiring an IQAir request, verifies that DataHub is reachable, and publishes the initial table metadata.
+- `collect` requests one current observation from IQAir and saves it. Collection must continue to work when DataHub is unavailable.
+- `inspect` displays the local database tables, schema, and recent observations.
+- `sync-datahub` republishes metadata after database schema, lineage, or documentation changes. It does not need to run after every new observation.
+
+The planned first-run workflow is:
+
+```bash
+uv sync
+cp .env.example .env
+uv run datahub docker quickstart
+uv run airtrace setup
+uv run airtrace collect
+```
+
+This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run datahub ingest -c ingestion/duckdb.yml` for metadata ingestion.
+
 ## Data required
 
 | Dataset | Minimum fields | Purpose |
