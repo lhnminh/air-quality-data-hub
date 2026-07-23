@@ -11,8 +11,8 @@ This folder contains the dashboard that people see in their browser.
 | `app/globals.css` | Controls colors, spacing, desktop layout, and mobile layout. |
 | `app/layout.tsx` | Sets the browser tab title and page description. |
 
-The remaining files are build settings used by Next.js. You normally do not
-need to change them.
+The remaining files are standard Next.js build settings used by Vercel. You
+normally do not need to change them.
 
 ## Run the dashboard locally
 
