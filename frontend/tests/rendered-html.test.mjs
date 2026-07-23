@@ -30,6 +30,6 @@ test("renders the AirTrace dashboard", async () => {
   assert.match(html, /<title>AirTrace Vietnam<\/title>/i);
   assert.match(html, /Hanoi air-quality operations/i);
   assert.match(html, /Observation history/i);
-  assert.match(html, /iqair_observations/i);
+  assert.match(html, /air_quality_observations/i);
   assert.doesNotMatch(html, /Your site is taking shape/i);
 });

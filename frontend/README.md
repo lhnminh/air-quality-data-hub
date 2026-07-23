@@ -6,7 +6,7 @@ This folder contains the dashboard that people see in their browser.
 
 | File | What it does |
 |---|---|
-| `app/page.tsx` | Builds the dashboard and requests DuckDB rows from the Python API. |
+| `app/page.tsx` | Builds the dashboard and requests PostgreSQL rows from the Python API. |
 | `app/mock-data.ts` | Provides clearly labeled sample data when the API is unavailable. |
 | `app/globals.css` | Controls colors, spacing, desktop layout, and mobile layout. |
 | `app/layout.tsx` | Sets the browser tab title and page description. |
@@ -26,8 +26,8 @@ From the main project folder:
 uv run uvicorn api:app --reload --port 8000
 ```
 
-The API reads existing rows from `data/airtrace.duckdb`. It does not make a new
-IQAir request.
+The API reads existing rows from PostgreSQL. It does not make a new IQAir
+request.
 
 ### Terminal 2: start the frontend
 
@@ -39,7 +39,7 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-- **Reading DuckDB** means the Python API returned real database rows.
+- **Reading PostgreSQL** means the Python API returned real database rows.
 - **Demo data** means the API was unavailable or the database was empty.
 
 ## Check the frontend
@@ -54,6 +54,6 @@ content appears in the generated page.
 
 ## Later deployment note
 
-The frontend is intended for Vercel. DuckDB is suitable for this local demo,
-but Vercel does not provide persistent disk storage for collected data. Before
-deployment, the project will need a hosted database and a deployed API URL.
+The frontend is intended for Vercel. The application uses hosted PostgreSQL so
+the deployed Python API can read persistent observations without relying on a
+local database file.

@@ -6,7 +6,7 @@ import { mockObservations, type AirObservation } from "./mock-data";
 const apiUrl =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-type DataMode = "loading" | "duckdb" | "demo";
+type DataMode = "loading" | "postgresql" | "demo";
 
 async function requestObservations() {
   try {
@@ -69,7 +69,7 @@ export default function Home() {
       setDataMode("demo");
     } else {
       setObservations(result);
-      setDataMode("duckdb");
+      setDataMode("postgresql");
     }
     setIsRefreshing(false);
   }, []);
@@ -85,7 +85,7 @@ export default function Home() {
         setDataMode("demo");
       } else {
         setObservations(result);
-        setDataMode("duckdb");
+        setDataMode("postgresql");
       }
     });
 
@@ -117,8 +117,8 @@ export default function Home() {
             <span className="status-dot" />
             {dataMode === "loading"
               ? "Connecting…"
-              : dataMode === "duckdb"
-                ? "Reading DuckDB"
+              : dataMode === "postgresql"
+                ? "Reading PostgreSQL"
                 : "Demo data"}
           </div>
           <button
@@ -149,7 +149,7 @@ export default function Home() {
         {dataMode === "demo" && (
           <aside className="demo-notice">
             <strong>Showing sample data.</strong> Start the Python API to replace
-            these examples with rows from <code>data/airtrace.duckdb</code>.
+            these examples with rows from the PostgreSQL database.
           </aside>
         )}
 
@@ -272,10 +272,10 @@ export default function Home() {
         <section className="panel table-panel">
           <div className="panel-title">
             <div>
-              <p className="eyebrow">Stored in DuckDB</p>
+              <p className="eyebrow">Stored in PostgreSQL</p>
               <h2>Observation history</h2>
             </div>
-            <code>iqair_observations</code>
+            <code>air_quality_observations</code>
           </div>
           <div className="table-scroll">
             <table>
@@ -305,7 +305,7 @@ export default function Home() {
 
         <footer>
           <span>AirTrace learning project</span>
-          <span>IQAir → DuckDB → Python API → this dashboard</span>
+          <span>IQAir → PostgreSQL → Python API → this dashboard</span>
         </footer>
       </div>
     </main>
