@@ -18,6 +18,17 @@ def get_database_url() -> str:
 
     return database_url
 
+def check_database_connection() -> bool:
+    try:
+        with psycopg.connect(get_database_url()) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+
+        return True
+    except (psycopg.Error, RuntimeError):
+        return False
+
 
 def get_recent_observations(limit: int = 20) -> list[dict[str, Any]]:
     safe_limit = min(max(limit, 1), 100)

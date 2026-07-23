@@ -3,8 +3,7 @@ import os
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import DATABASE_PATH, get_recent_observations
-
+from database import check_database_connection, get_recent_observations
 
 app = FastAPI(title="AirTrace API")
 
@@ -21,9 +20,12 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health_check() -> dict:
+    database_connected = check_database_connection()
+
     return {
-        "status": "ok",
-        "database_exists": DATABASE_PATH.exists(),
+        "status": "ok" if database_connected else "error",
+        "database": "PostgreSQL",
+        "database_connected": database_connected,
     }
 
 
