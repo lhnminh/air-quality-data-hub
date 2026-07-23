@@ -1,0 +1,29 @@
+source:
+  type: postgres
+  config:
+    # DataHub requires host_port even when sqlalchemy_uri is supplied.
+    host_port: "${DATAHUB_POSTGRES_HOST}:5432"
+
+    # The complete connection address is loaded from .env.
+    sqlalchemy_uri: "${DATABASE_URL}"
+
+    # This distinguishes production assets from local development assets.
+    env: "PROD"
+    platform_instance: "airtrace-neon"
+
+    # AirTrace currently stores tables only in the public schema.
+    schema_pattern:
+      allow:
+        - "public"
+
+    include_tables: true
+    include_views: false
+
+    # Collect useful table and column statistics.
+    profiling:
+      enabled: true
+
+sink:
+  type: datahub-rest
+  config:
+    server: "http://localhost:8080"

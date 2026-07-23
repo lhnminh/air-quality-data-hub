@@ -1,6 +1,6 @@
-import duckdb
+from unittest.mock import MagicMock
+
 import pytest
-from sqlalchemy import create_engine, inspect
 
 import database
 
@@ -31,43 +31,73 @@ def iqair_result() -> dict:
 
 
 @pytest.fixture
-def temporary_database(tmp_path, monkeypatch, iqair_result):
-    database_path = tmp_path / "test.duckdb"
-    monkeypatch.setattr(database, "DATABASE_PATH", database_path)
-    database.save_iqair_observation(iqair_result)
-    return database_path
+def fake_cursor(monkeypatch):
+    cursor = MagicMock()
 
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    connection.cursor.return_value.__enter__.return_value = cursor
 
-def test_save_observation_and_prevent_duplicate(
-    temporary_database, iqair_result
-):
-    assert database.save_iqair_observation(iqair_result) is False
-
-    with duckdb.connect(str(temporary_database), read_only=True) as connection:
-        row = connection.execute(
-            """
-            SELECT city, state, aqi_us, main_pollutant
-            FROM iqair_observations
-            """
-        ).fetchone()
-
-    assert row == ("Hanoi", "Ha Noi", 90, "p2")
-
-
-def test_table_is_visible_through_sqlalchemy(temporary_database):
-    engine = create_engine(f"duckdb:///{temporary_database.as_posix()}")
-    try:
-        assert "iqair_observations" in inspect(engine).get_table_names()
-    finally:
-        engine.dispose()
-
-
-def test_get_recent_observations(temporary_database):
-    observations = database.get_recent_observations(
-        database_path=temporary_database
+    monkeypatch.setenv(
+        "DATABASE_URL",
+        "postgresql://test-user:test-password@test-host/test-database",
     )
+    monkeypatch.setattr(
+        database.psycopg,
+        "connect",
+        MagicMock(return_value=connection),
+    )
+
+    return cursor
+
+
+def test_save_observation(fake_cursor, iqair_result):
+    fake_cursor.fetchone.return_value = (1,)
+
+    inserted = database.save_iqair_observation(iqair_result)
+
+    assert inserted is True
+
+    query, values = fake_cursor.execute.call_args.args
+
+    assert "INSERT INTO air_quality_observations" in query
+    assert values[0] == "IQAir"
+    assert values[2] == "Hanoi"
+    assert values[7] == 90
+    assert values[8] == "p2"
+
+
+def test_duplicate_observation_is_not_inserted(
+    fake_cursor,
+    iqair_result,
+):
+    fake_cursor.fetchone.return_value = None
+
+    inserted = database.save_iqair_observation(iqair_result)
+
+    assert inserted is False
+
+
+def test_get_recent_observations(fake_cursor):
+    fake_cursor.fetchall.return_value = [
+        {
+            "source": "IQAir",
+            "city": "Hanoi",
+            "country": "Vietnam",
+            "aqi_us": 90,
+            "main_pollutant": "p2",
+        }
+    ]
+
+    observations = database.get_recent_observations(limit=10)
 
     assert len(observations) == 1
     assert observations[0]["city"] == "Hanoi"
     assert observations[0]["aqi_us"] == 90
     assert observations[0]["main_pollutant"] == "p2"
+
+
+def test_database_connection_check(fake_cursor):
+    fake_cursor.fetchone.return_value = (1,)
+
+    assert database.check_database_connection() is True
