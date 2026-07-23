@@ -58,7 +58,7 @@ The operational store contains measurements and model outputs. DataHub contains 
 ### Components
 
 - **Collectors:** scheduled Python jobs that poll data sources every 5–15 minutes where supported.
-- **Operational store:** DuckDB for the demo; PostgreSQL/PostGIS later.
+- **Operational store:** hosted Neon PostgreSQL for the demo.
 - **DataHub:** catalogs sources and outputs, tracks lineage and quality, and stores investigation records.
 - **Event detector:** deterministic thresholds and anomaly rules.
 - **Attribution engine:** scores source hypotheses from spatial, temporal, wind, pollutant, and activity evidence.
@@ -106,29 +106,27 @@ The browser does not connect directly to DataHub or external data feeds. The bac
 
 - **Frontend:** Next.js with MapLibre or Leaflet
 - **Backend:** Python with FastAPI
-- **Demo database:** DuckDB
+- **Demo database:** Neon PostgreSQL
 - **Map tiles and locations:** OpenStreetMap
 - **Live experience:** backend polling plus browser updates every 10–30 seconds during the demo
 - **Agent context:** DataHub MCP Server or Agent Context Kit
-- **Judging deployment:** Vercel-hosted frontend connected through a secure tunnel to the local Python API, DuckDB, and DataHub
+- **Judging deployment:** Vercel-hosted frontend and FastAPI connected to Neon PostgreSQL; DataHub runs locally and catalogs the same database
 
 The hackathon demo can replay timestamped observations as a live event while using the same interfaces intended for real near-real-time feeds.
 
 ### Judging deployment target
 
-The public judging frontend will be deployed on Vercel. For the time-limited
-hackathon demo, the Python API, DuckDB, and open-source DataHub will run on a
-teammate's Mac and be reached through Cloudflare Tunnel.
-
-This avoids moving the local data stack before judging while keeping DataHub
-fully involved in the agent workflow. The host Mac must remain awake, online,
-and running throughout the demo.
+The public judging frontend and Python API will be deployed as two Vercel
+projects. Neon PostgreSQL provides persistent shared storage. Open-source
+DataHub runs on a teammate's Mac during the demo and catalogs the same Neon
+database, so it remains part of the agent workflow without being hosted on
+Vercel.
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for the architecture, exact startup order,
 security rules, Vercel configuration, and judging checklist.
 
-For a later always-on deployment, the project will need hosted persistent
-storage and either self-hosted DataHub on a server or DataHub Cloud.
+For a later always-on deployment, DataHub can move to a hosted server or
+DataHub Cloud. The judging demo does not require that additional hosting.
 
 ### Planned local command interface
 
@@ -149,19 +147,19 @@ uv run airtrace sync-datahub
 The planned first-run workflow is:
 
 ```bash
-uv sync
+uv sync --extra datahub
 cp .env.example .env
 uv run datahub docker quickstart
 uv run airtrace setup
 uv run airtrace collect
 ```
 
-This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run datahub ingest -c ingestion/duckdb.yml` for metadata ingestion.
+This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run datahub ingest -c ingestion/postgres.yml` for metadata ingestion.
 
 ### Run the dashboard prototype
 
-The browser cannot read a DuckDB file directly, so the project now includes a
-small Python API in `api.py`. Use two terminal windows:
+The browser does not receive PostgreSQL credentials directly, so the project
+includes a small Python API in `api.py`. Use two terminal windows:
 
 **Terminal 1 — start the Python API from the main project folder:**
 
@@ -177,7 +175,7 @@ npm install
 npm run dev
 ```
 
-Then open <http://localhost:3000>. The dashboard says **Reading DuckDB** when
+Then open <http://localhost:3000>. The dashboard says **Reading PostgreSQL** when
 the API returned stored observations. If the API is unavailable or the database
 is empty, it says **Demo data** and uses the clearly labeled values in
 `frontend/app/mock-data.ts`.
@@ -281,7 +279,6 @@ The demo replays timestamped events as a live stream. Production feeds would be 
 - Accessible traffic-data source or synthetic traffic generator
 - Notification and inspection-task destinations
 - Local DataHub OSS versus hosted DataHub
-- Vercel-compatible persistent database or object store
 - LLM provider
 
 ## Hackathon fit

@@ -1,70 +1,56 @@
-# AirTrace demo deployment
+# AirTrace deployment guide
 
-This document explains how to run the public hackathon demo without DataHub
-Cloud. The frontend is deployed to Vercel. The Python API, DuckDB, and
-open-source DataHub run on a teammate's Mac and are temporarily exposed through
-Cloudflare Tunnel.
+AirTrace uses two Vercel projects from the same GitHub repository:
 
-This is a **demo strategy**, not a production architecture. It works only while
-the host Mac is awake, online, and running every required process.
+- `airtrace-api` runs the Python FastAPI application.
+- `airtrace-frontend` runs the Next.js dashboard.
+
+Both use the hosted Neon PostgreSQL database. Open-source DataHub remains on a
+teammate's Mac during the hackathon demo and catalogs that same database.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    J["Judge's browser"] --> V["Frontend on Vercel"]
-    V --> T["Cloudflare API tunnel"]
-    T --> A["Python API and agent on the host Mac"]
-    A --> D["Local DuckDB"]
-    A --> H["Local DataHub API"]
-    A --> I["IQAir API"]
-    J --> U["Optional DataHub UI tunnel"]
-    U --> H
+    J["Judge's browser"] --> F["Next.js frontend on Vercel"]
+    F --> A["FastAPI on Vercel"]
+    A --> P["Neon PostgreSQL"]
+    C["IQAir collector on the host Mac"] --> I["IQAir API"]
+    C --> P
+    D["Local DataHub"] --> P
 ```
 
-## What runs where
+The frontend never receives the PostgreSQL password or IQAir API key. It reads
+data through the FastAPI application.
+
+## What is deployed
 
 | Component | Location | Purpose |
 |---|---|---|
-| Frontend | Vercel | Gives judges a stable public application URL. |
-| Python API and agent | Host Mac, port 8000 | Reads data, calls DataHub, and creates reports. |
-| DuckDB | Host Mac | Stores the demo observations and recommendations. |
-| DataHub Core | Docker on the host Mac | Supplies schema, freshness, ownership, and lineage context. |
-| Cloudflare Tunnel | Host Mac | Gives local HTTP services temporary public HTTPS URLs. |
+| Next.js frontend | Vercel | Public dashboard for judges |
+| FastAPI | Vercel | Reads observations from PostgreSQL |
+| PostgreSQL | Neon | Persistent observation storage |
+| IQAir collector | Host Mac | Fetches and stores a new observation |
+| DataHub | Host Mac | Catalogs PostgreSQL metadata and profiling |
 
-The frontend never connects directly to DuckDB or DataHub. It calls the Python
-API, and the Python API contacts both local services.
+The current FastAPI endpoints read existing rows. They do not make a new IQAir
+request. Run `main.py` when you want to collect another observation.
 
-## What works today
+## Before deploying
 
-- IQAir collection saves Hanoi observations to DuckDB.
-- DataHub can ingest the DuckDB table metadata.
-- The Python API returns recent DuckDB observations.
-- The frontend displays those observations.
+### 1. Install the local Python environment
 
-## Still to be implemented
-
-- The AI agent and prompt box.
-- DataHub queries performed by the agent.
-- The deterministic alert-recommendation rule.
-- Storage for generated reports and alert recommendations.
-- The deployed Vercel frontend configuration.
-- Production CORS settings for the Vercel URL.
-
-Keeping this list explicit prevents the current dashboard prototype from being
-mistaken for the completed agent.
-
-## One-time preparation
-
-### 1. Install project dependencies
-
-From the main project folder:
+DataHub is an optional local dependency so Vercel does not install it with the
+web API:
 
 ```bash
-uv sync
+uv sync --extra datahub
 ```
 
-For the frontend:
+The project remains pinned to Python 3.11 through `.python-version` and
+`pyproject.toml`.
+
+### 2. Install the frontend environment
 
 ```bash
 cd frontend
@@ -72,202 +58,206 @@ npm install
 cd ..
 ```
 
-### 2. Prepare the IQAir secret
+### 3. Prepare local environment variables
 
-Copy the example environment file if `.env` does not already exist:
+If `.env` does not exist:
 
 ```bash
 cp .env.example .env
 ```
 
-Add the IQAir API key to `.env`. Never commit `.env`.
-
-### 3. Install Cloudflare Tunnel
-
-On macOS with Homebrew:
-
-```bash
-brew install cloudflared
-```
-
-Cloudflare Quick Tunnels create random public URLs and are intended for testing
-and development. A new URL is normally created whenever a quick tunnel is
-restarted.
-
-## Start the demo
-
-Start the following processes in order. Keep each long-running process in its
-own terminal window.
-
-### Terminal 1: start DataHub
-
-```bash
-uv run datahub docker quickstart
-```
-
-The normal local addresses are:
+Fill in:
 
 ```text
-DataHub UI:  http://localhost:9002
-DataHub API: http://localhost:8080
+IQAIR_API_KEY=...
+DATABASE_URL=...
+DATAHUB_POSTGRES_HOST=...
+FRONTEND_URL=http://localhost:3000
 ```
 
-Confirm the UI loads before continuing. If DataHub prints different ports, use
-the printed values instead.
+Use Neon's pooled connection string for `DATABASE_URL` when possible. Its
+hostname normally contains `-pooler`.
 
-### Terminal 2: collect an observation
+### 4. Verify locally
 
-This command makes one IQAir request and then finishes:
-
-```bash
-uv run python main.py
-```
-
-Inspect the saved data if needed:
-
-```bash
-uv run python scripts/inspect_database.py
-```
-
-### Terminal 3: publish metadata to DataHub
-
-```bash
-uv run datahub ingest -c ingestion/duckdb.yml
-```
-
-This republishes table metadata. It does not need to run for every new row
-because DataHub catalogs metadata rather than serving the observation rows.
-
-### Terminal 4: start the Python API
+Terminal 1:
 
 ```bash
 uv run uvicorn api:app --reload --port 8000
 ```
 
-Test it locally:
+Terminal 2:
+
+```bash
+cd frontend
+npm run dev
+```
+
+Check:
 
 ```text
 http://localhost:8000/api/health
 http://localhost:8000/api/observations
+http://localhost:3000
 ```
 
-### Terminal 5: expose the Python API
+### 5. Push the repository to GitHub
 
-```bash
-cloudflared tunnel --url http://localhost:8000
-```
+Vercel must be able to read the repository. Do not commit `.env`; configure its
+values in the Vercel dashboard instead.
 
-Copy the generated HTTPS address. It will resemble:
+## Deploy the Python API
+
+1. In Vercel, choose **Add New → Project**.
+2. Import this GitHub repository.
+3. Name the project `airtrace-api`.
+4. Leave the root directory at the repository root (`.`).
+5. Let Vercel detect the Python/FastAPI project.
+6. Do not add a custom build command.
+7. Add these environment variables:
 
 ```text
-https://random-api-name.trycloudflare.com
+DATABASE_URL=your pooled Neon connection string
+FRONTEND_URL=http://localhost:3000
 ```
 
-This is the public API address the Vercel frontend must use.
+`FRONTEND_URL` is temporary during the first deployment because the final
+frontend address does not exist yet.
 
-### Terminal 6: optionally expose the DataHub UI
-
-Use this when judges should inspect the DataHub catalog directly:
-
-```bash
-cloudflared tunnel --url http://localhost:9002
-```
-
-Copy the second generated HTTPS address and include it in the judging notes.
-Do not confuse this UI address with the Python API address.
-
-## Configure Vercel
-
-Set this environment variable in the Vercel project:
+Deploy and copy the resulting address, for example:
 
 ```text
-NEXT_PUBLIC_API_URL=https://random-api-name.trycloudflare.com
+https://airtrace-api.vercel.app
 ```
 
-Then redeploy the frontend. A changed tunnel address requires updating this
-variable and redeploying again.
-
-The Python API must also allow the real Vercel frontend origin. For example:
+Verify both endpoints:
 
 ```text
-FRONTEND_URL=https://airtrace-example.vercel.app
+https://airtrace-api.vercel.app/api/health
+https://airtrace-api.vercel.app/api/observations
 ```
 
-This project currently defaults to `http://localhost:3000`, so the production
-origin must be configured before the browser can read the tunneled API.
+The health response should contain:
 
-## Pre-demo checklist
+```json
+{
+  "status": "ok",
+  "database": "PostgreSQL",
+  "database_connected": true
+}
+```
 
-- [ ] Host Mac is plugged into power.
-- [ ] Sleep is disabled for the duration of the demo.
-- [ ] Internet connection is stable.
-- [ ] Docker and all DataHub containers are healthy.
-- [ ] The latest IQAir observation exists in DuckDB.
-- [ ] DataHub contains the `iqair_observations` asset.
-- [ ] Python API health endpoint returns `status: ok`.
-- [ ] API tunnel URL works from a phone or another computer.
-- [ ] Vercel uses the current API tunnel URL.
-- [ ] Vercel frontend shows **Reading DuckDB**, not **Demo data**.
-- [ ] DataHub UI tunnel works if it will be shown to judges.
-- [ ] No API keys or access tokens appear in browser code or screenshots.
+## Deploy the frontend
 
-## Security rules
+1. In Vercel, add another project from the same GitHub repository.
+2. Name it `airtrace-frontend`.
+3. Set its root directory to `frontend`.
+4. Let Vercel detect Next.js.
+5. Add this environment variable using the real API address:
 
-- Do not open router ports or expose the Mac's public IP address.
-- Do not place `IQAIR_API_KEY` in a `NEXT_PUBLIC_` environment variable.
-- Change default DataHub credentials before sharing its UI publicly.
-- Keep DataHub's backend API local unless a feature specifically requires a
-  public endpoint.
-- Stop both tunnels immediately after the demo.
-- Treat every Quick Tunnel URL as public while its process is running.
+```text
+NEXT_PUBLIC_API_URL=https://airtrace-api.vercel.app
+```
 
-## Stop the demo
+Deploy and copy the resulting frontend address, for example:
 
-Press `Control-C` in the Python API terminal and both Cloudflare Tunnel
-terminals.
+```text
+https://airtrace-frontend.vercel.app
+```
 
-Stop DataHub separately:
+## Finish the API CORS setting
+
+Return to the `airtrace-api` Vercel project and replace `FRONTEND_URL` with the
+real frontend origin:
+
+```text
+FRONTEND_URL=https://airtrace-frontend.vercel.app
+```
+
+Redeploy the API. Then refresh the frontend. Its status should say
+**Reading PostgreSQL** rather than **Demo data**.
+
+## Run DataHub for the demo
+
+DataHub is not deployed to Vercel. It runs locally and reads the same Neon
+database as the deployed API.
+
+Start DataHub:
 
 ```bash
-uv run datahub docker quickstart --stop
+uv run datahub docker quickstart
 ```
 
-Stopping the tunnels immediately removes public access to the services on the
-host Mac.
+Publish the PostgreSQL metadata:
+
+```bash
+uv run datahub ingest -c ingestion/postgres.yml
+```
+
+Open the local DataHub UI:
+
+```text
+http://localhost:9002
+```
+
+Ingestion does not need to run after every IQAir observation. Run it again when
+the table schema, documentation, lineage, or profiling information changes.
+
+## Collect fresh IQAir data
+
+From the project root on the host Mac:
+
+```bash
+uv run python main.py
+```
+
+The command calls IQAir once and writes the observation to Neon. The deployed
+frontend can then read it through the deployed API by pressing **Refresh data**.
+
+## Deployment checklist
+
+- [ ] API `/api/health` reports a PostgreSQL connection.
+- [ ] API `/api/observations` returns at least one observation.
+- [ ] Frontend has `NEXT_PUBLIC_API_URL` set to the deployed API.
+- [ ] API has `FRONTEND_URL` set to the deployed frontend origin.
+- [ ] Frontend says **Reading PostgreSQL**.
+- [ ] `.env` and API keys are not committed.
+- [ ] Local DataHub shows the PostgreSQL dataset.
+- [ ] `main.py` can add a new IQAir observation.
 
 ## Common problems
 
 ### The frontend says Demo data
 
-Check, in order:
+Check these in order:
 
-1. The Python API is running on port 8000.
-2. The API tunnel process is still running.
-3. Vercel has the current tunnel URL.
-4. `FRONTEND_URL` matches the Vercel origin.
-5. DuckDB contains at least one observation.
+1. Open the deployed API `/api/observations` URL directly.
+2. Confirm `NEXT_PUBLIC_API_URL` has no trailing `/api` path.
+3. Confirm `FRONTEND_URL` exactly matches the frontend origin.
+4. Redeploy each project after changing an environment variable.
+5. Confirm PostgreSQL contains at least one row.
 
-### The tunnel URL changed
+### The API health response reports an error
 
-Quick Tunnel URLs are temporary. Update `NEXT_PUBLIC_API_URL` in Vercel and
-redeploy. A named Cloudflare Tunnel and a domain can provide stable addresses
-later.
+Confirm the API project's `DATABASE_URL` is the complete Neon PostgreSQL
+connection string and includes the required SSL settings.
 
-### DataHub does not show the latest observation
+### DataHub does not show the newest row
 
-DataHub displays the table's metadata, not every row. Inspect the actual rows
-with:
+DataHub catalogs and profiles the table; it is not the application's row
+browser. Inspect rows through the API or run:
 
 ```bash
 uv run python scripts/inspect_database.py
 ```
 
-Run DataHub ingestion again only when metadata, documentation, or schema has
-changed.
+### A Vercel preview deployment is blocked by CORS
 
-## Production path after the hackathon
+The API currently allows one exact frontend origin. Use the production frontend
+URL for judging. Support for multiple preview origins can be added later.
 
-A long-running deployment would replace the host Mac, tunnels, and DuckDB with
-a hosted Python service, hosted PostgreSQL, and either self-hosted DataHub on a
-server or DataHub Cloud. That migration is not required for this temporary
-judging demo.
+## Not deployed yet
+
+The AI agent and DataHub query workflow are still future application features.
+This deployment prepares the working dashboard, API, PostgreSQL connection, and
+local DataHub catalog for that next stage.

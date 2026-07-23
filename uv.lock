@@ -131,12 +131,16 @@ name = "air-quality-data-hub"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "acryl-datahub", extra = ["postgres", "sqlalchemy"] },
-    { name = "datahub" },
     { name = "fastapi" },
     { name = "psycopg", extra = ["binary"] },
     { name = "python-dotenv" },
     { name = "uvicorn" },
+]
+
+[package.optional-dependencies]
+datahub = [
+    { name = "acryl-datahub", extra = ["postgres", "sqlalchemy"] },
+    { name = "datahub" },
 ]
 
 [package.dev-dependencies]
@@ -146,13 +150,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "acryl-datahub", extras = ["postgres", "sqlalchemy"], specifier = ">=1.6.0.15" },
-    { name = "datahub", specifier = ">=0.999.1" },
+    { name = "acryl-datahub", extras = ["postgres", "sqlalchemy"], marker = "extra == 'datahub'", specifier = ">=1.6.0.15" },
+    { name = "datahub", marker = "extra == 'datahub'", specifier = ">=0.999.1" },
     { name = "fastapi", specifier = ">=0.139.2" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "uvicorn", specifier = ">=0.51.0" },
 ]
+provides-extras = ["datahub"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=9.1.1" }]
