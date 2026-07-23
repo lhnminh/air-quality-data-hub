@@ -6,8 +6,7 @@ from urllib.request import urlopen
 
 from dotenv import load_dotenv
 
-from database import DATABASE_PATH, save_iqair_observation
-
+from database import save_iqair_observation
 load_dotenv()
 
 
@@ -40,7 +39,7 @@ def main():
     print(json.dumps(result, indent=2))
 
     if save_iqair_observation(result):
-        print(f"Saved observation to {DATABASE_PATH}")
+        print("Saved observation to PostgreSQL")
     else:
         print("Observation already exists; nothing new was saved")
 
