@@ -191,7 +191,7 @@ uv run datahub docker quickstart
 Publish the PostgreSQL metadata:
 
 ```bash
-uv run datahub ingest -c ingestion/postgres.yml
+uv run --env-file .env datahub ingest -c ingestion/postgres.yml
 ```
 
 Open the local DataHub UI:
@@ -214,10 +214,36 @@ uv run python main.py
 The command calls IQAir once and writes the observation to Neon. The deployed
 frontend can then read it through the deployed API by pressing **Refresh data**.
 
+## Collect weather and wind context
+
+From the project root on the host Mac:
+
+```bash
+uv run python weather.py
+```
+
+The command reads current modeled weather from Open-Meteo for Hanoi and saves
+wind speed and direction, gusts, temperature, humidity, precipitation, and a
+weather code to Neon. It does not require an API key.
+
+## Collect modeled pollutant context
+
+From the project root on the host Mac:
+
+```bash
+uv run python air_quality.py
+```
+
+The command saves Open-Meteo's CAMS-modelled PM2.5, PM10, NO₂, SO₂, CO, and O₃
+concentrations to Neon for the eight Hanoi pilot districts. These are regional
+model estimates, not sensor readings.
+
 ## Deployment checklist
 
 - [ ] API `/api/health` reports a PostgreSQL connection.
 - [ ] API `/api/observations` returns at least one observation.
+- [ ] API `/api/weather` returns at least one weather observation.
+- [ ] API `/api/modeled-air-quality` returns at least one modeled air-quality observation.
 - [ ] Frontend has `NEXT_PUBLIC_API_URL` set to the deployed API.
 - [ ] API has `FRONTEND_URL` set to the deployed frontend origin.
 - [ ] Frontend says **Reading PostgreSQL**.

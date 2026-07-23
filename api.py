@@ -3,7 +3,13 @@ import os
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from database import check_database_connection, get_recent_observations
+from database import (
+    check_database_connection,
+    get_district_statuses,
+    get_recent_modeled_air_quality_observations,
+    get_recent_observations,
+    get_recent_weather_observations,
+)
 
 app = FastAPI(title="AirTrace API")
 
@@ -38,3 +44,31 @@ def recent_observations(
         "count": len(observations),
         "observations": observations,
     }
+
+
+@app.get("/api/weather")
+def recent_weather_observations(
+    limit: int = Query(default=20, ge=1, le=100),
+) -> dict:
+    observations = get_recent_weather_observations(limit=limit)
+    return {
+        "count": len(observations),
+        "observations": observations,
+    }
+
+
+@app.get("/api/modeled-air-quality")
+def recent_modeled_air_quality_observations(
+    limit: int = Query(default=20, ge=1, le=100),
+) -> dict:
+    observations = get_recent_modeled_air_quality_observations(limit=limit)
+    return {
+        "count": len(observations),
+        "observations": observations,
+    }
+
+
+@app.get("/api/districts")
+def district_statuses() -> dict:
+    districts = get_district_statuses()
+    return {"count": len(districts), "districts": districts}
