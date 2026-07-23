@@ -110,19 +110,25 @@ The browser does not connect directly to DataHub or external data feeds. The bac
 - **Map tiles and locations:** OpenStreetMap
 - **Live experience:** backend polling plus browser updates every 10–30 seconds during the demo
 - **Agent context:** DataHub MCP Server or Agent Context Kit
-- **Judging deployment:** Vercel-hosted frontend and Python API functions
+- **Judging deployment:** Vercel-hosted frontend connected through a secure tunnel to the local Python API, DuckDB, and DataHub
 
 The hackathon demo can replay timestamped observations as a live event while using the same interfaces intended for real near-real-time feeds.
 
 ### Judging deployment target
 
-The public judging demo will be deployed on Vercel. Architecture and dependency choices must therefore remain compatible with Vercel's frontend and Python function runtimes.
+The public judging frontend will be deployed on Vercel. For the time-limited
+hackathon demo, the Python API, DuckDB, and open-source DataHub will run on a
+teammate's Mac and be reached through Cloudflare Tunnel.
 
-The project is currently pinned to Python 3.11 for local development. Vercel's Python runtime currently supports Python 3.12, 3.13, and 3.14, so the project must move to a supported version and revalidate its dependencies before deployment.
+This avoids moving the local data stack before judging while keeping DataHub
+fully involved in the agent workflow. The host Mac must remain awake, online,
+and running throughout the demo.
 
-DuckDB remains the local development and replay database. Vercel Functions do not provide a persistent writable filesystem, so a deployed workflow that collects or modifies data must use an external persistent database or object store. API keys and other credentials will be configured through Vercel environment variables rather than deployed `.env` files.
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the architecture, exact startup order,
+security rules, Vercel configuration, and judging checklist.
 
-DataHub is a separate service and must be reachable from the Vercel deployment. The local DataHub quickstart supports development, while the judging deployment will require a hosted DataHub endpoint or another publicly reachable deployment.
+For a later always-on deployment, the project will need hosted persistent
+storage and either self-hosted DataHub on a server or DataHub Cloud.
 
 ### Planned local command interface
 
