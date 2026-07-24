@@ -219,7 +219,7 @@ frontend can then read it through the deployed API by pressing **Refresh data**.
 From the project root on the host Mac:
 
 ```bash
-uv run python weather.py
+uv run python collect_weather.py
 ```
 
 The command reads current modeled weather from Open-Meteo for Hanoi and saves
@@ -231,7 +231,7 @@ weather code to Neon. It does not require an API key.
 From the project root on the host Mac:
 
 ```bash
-uv run python air_quality.py
+uv run python collect_air_quality.py
 ```
 
 The command saves Open-Meteo's CAMS-modelled PM2.5, PM10, NO₂, SO₂, CO, and O₃

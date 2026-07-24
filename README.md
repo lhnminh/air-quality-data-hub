@@ -181,9 +181,9 @@ is empty, it says **Demo data** and uses the clearly labeled values in
 `frontend/app/mock-data.ts`.
 
 The API only reads the database. Run `uv run python main.py` separately whenever
-you want to collect and save a new IQAir observation. Run `uv run python weather.py`
+you want to collect and save a new IQAir observation. Run `uv run python collect_weather.py`
 to collect Open-Meteo weather context for Hanoi (wind, gusts, temperature, humidity,
-and precipitation); it does not require an API key. Run `uv run python air_quality.py`
+and precipitation); it does not require an API key. Run `uv run python collect_air_quality.py`
 to collect Open-Meteo's modeled pollutant concentrations (PM2.5, PM10, NO₂, SO₂,
 CO, and O₃); it also does not require an API key. Both Open-Meteo collectors
 retrieve representative values for the eight Hanoi pilot districts shown on the
