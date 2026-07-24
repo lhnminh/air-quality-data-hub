@@ -340,6 +340,64 @@ h2 {
   position: relative;
 }
 
+.district-map-shell {
+  background: #e6ece2;
+  height: 310px;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+}
+
+.district-map {
+  height: 100%;
+  width: 100%;
+}
+
+.district-map-loading {
+  align-items: center;
+  color: var(--green);
+  display: flex;
+  font-size: 12px;
+  font-weight: 700;
+  inset: 0;
+  justify-content: center;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+  position: absolute;
+  text-transform: uppercase;
+}
+
+.map-district-marker {
+  background: var(--card);
+  border: 2px solid var(--green);
+  border-radius: 999px;
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.32);
+  color: var(--ink);
+  cursor: pointer;
+  min-width: 42px;
+  padding: 5px 7px;
+}
+
+.map-district-marker strong,
+.map-district-marker span {
+  display: block;
+  line-height: 1.1;
+}
+
+.map-district-marker strong { font-size: 12px; }
+.map-district-marker span { font-size: 8px; margin-top: 2px; white-space: nowrap; }
+
+.map-district-marker.selected {
+  background: var(--green);
+  border-color: var(--lime);
+  color: white;
+}
+
+.map-district-marker:focus-visible {
+  outline: 3px solid var(--yellow);
+  outline-offset: 3px;
+}
+
 .road,
 .river {
   display: block;
@@ -378,31 +436,53 @@ h2 {
 .old-quarter { left: 23%; top: 57%; }
 .west-lake { left: 15%; top: 18%; }
 
-.sensor-marker {
+.district-marker {
   align-items: center;
-  background: var(--ink);
-  border: 4px solid rgba(255, 255, 255, 0.86);
-  border-radius: 50% 50% 50% 4px;
-  box-shadow: 0 8px 18px rgba(23, 34, 28, 0.22);
+  background: var(--card);
+  border: 2px solid var(--green);
+  border-radius: 999px;
+  box-shadow: 0 4px 12px rgba(23, 34, 28, 0.18);
   color: white;
   display: flex;
   flex-direction: column;
-  height: 62px;
   justify-content: center;
-  left: 53%;
+  min-width: 38px;
+  padding: 4px 6px;
   position: absolute;
-  top: 35%;
-  transform: rotate(-10deg);
-  width: 62px;
+  transform: translate(-50%, -50%);
+  z-index: 2;
 }
 
-.sensor-marker b,
-.sensor-marker small {
-  transform: rotate(10deg);
+.district-marker b,
+.district-marker small {
+  color: var(--ink);
+  line-height: 1;
 }
 
-.sensor-marker b { font-size: 20px; line-height: 1; }
-.sensor-marker small { font-size: 8px; margin-top: 2px; }
+.district-marker b { font-size: 12px; }
+.district-marker small { font-size: 8px; margin-top: 3px; white-space: nowrap; }
+
+.district-marker.selected {
+  background: var(--green);
+  border-color: var(--card);
+  box-shadow: 0 0 0 3px rgba(200, 232, 96, 0.8), 0 4px 12px rgba(23, 34, 28, 0.22);
+}
+
+.district-marker.selected b,
+.district-marker.selected small {
+  color: white;
+}
+
+.district-detail {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 3px;
+  padding: 12px 22px 16px;
+}
+
+.district-detail strong { font-size: 13px; }
+.district-detail span { font-size: 12px; font-weight: 700; }
+.district-detail small { color: var(--muted); font-size: 11px; }
 
 .health-label {
   background: #e6f0dc;
@@ -462,6 +542,14 @@ h2 {
   padding: 14px 4px 0;
 }
 
+.trend-note {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 12px 0 -10px;
+  max-width: 460px;
+}
+
 .chart-column {
   align-items: center;
   align-self: stretch;
@@ -517,6 +605,96 @@ h2 {
 
 .table-panel {
   margin-top: 16px;
+}
+
+.weather-panel {
+  margin-top: 16px;
+}
+
+.pollutant-panel {
+  margin-top: 16px;
+}
+
+.model-note {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 16px 0 0;
+  max-width: 680px;
+}
+
+.pollutant-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  margin-top: 20px;
+}
+
+.pollutant-grid div {
+  background: #edf1e9;
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.pollutant-grid span,
+.pollutant-grid strong {
+  display: block;
+}
+
+.pollutant-grid span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pollutant-grid strong {
+  font-size: 20px;
+  letter-spacing: -0.04em;
+  margin-top: 5px;
+}
+
+.weather-source {
+  background: #e6f0dc;
+  border-radius: 999px;
+  color: #3e6c34;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 7px 10px;
+}
+
+.weather-source.sample {
+  background: #fff3cf;
+  color: #725612;
+}
+
+.weather-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 22px;
+}
+
+.weather-grid div {
+  border-left: 1px solid var(--line);
+  padding-left: 16px;
+}
+
+.weather-grid div:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.weather-grid span,
+.weather-grid small {
+  color: var(--muted);
+  display: block;
+  font-size: 11px;
+}
+
+.weather-grid strong {
+  display: block;
+  font-size: 18px;
+  letter-spacing: -0.03em;
+  margin: 7px 0 5px;
 }
 
 .table-panel code {
@@ -586,6 +764,19 @@ footer {
     gap: 0 28px;
     grid-template-columns: 1fr 1fr;
   }
+
+  .weather-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pollutant-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .weather-grid div:nth-child(3) {
+    border-left: 0;
+    padding-left: 0;
+  }
 }
 
 @media (max-width: 680px) {
@@ -601,6 +792,9 @@ footer {
   h1 { font-size: 42px; }
   .panel { padding: 20px; }
   .health-list { display: block; }
+  .weather-grid { gap: 18px 12px; }
+  .weather-grid div { padding-left: 12px; }
+  .pollutant-grid { grid-template-columns: 1fr 1fr; }
   .panel-title { align-items: flex-start; gap: 12px; }
   footer { flex-direction: column; gap: 7px; }
 }

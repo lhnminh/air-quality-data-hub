@@ -154,7 +154,7 @@ uv run airtrace setup
 uv run airtrace collect
 ```
 
-This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run datahub ingest -c ingestion/postgres.yml` for metadata ingestion.
+This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run --env-file .env datahub ingest -c ingestion/postgres.yml` for metadata ingestion.
 
 ### Run the dashboard prototype
 
@@ -181,7 +181,14 @@ is empty, it says **Demo data** and uses the clearly labeled values in
 `frontend/app/mock-data.ts`.
 
 The API only reads the database. Run `uv run python main.py` separately whenever
-you want to collect and save a new IQAir observation.
+you want to collect and save a new IQAir observation. Run `uv run python collect_weather.py`
+to collect Open-Meteo weather context for Hanoi (wind, gusts, temperature, humidity,
+and precipitation); it does not require an API key. Run `uv run python collect_air_quality.py`
+to collect Open-Meteo's modeled pollutant concentrations (PM2.5, PM10, NO₂, SO₂,
+CO, and O₃); it also does not require an API key. Both Open-Meteo collectors
+retrieve representative values for the eight Hanoi pilot districts shown on the
+dashboard map. The map only displays districts with both complete weather and
+modeled pollutant records, so every selectable district has a full status.
 
 ## Data required
 
@@ -200,7 +207,6 @@ Potential starting sources:
 
 - [Hanoi environmental monitoring portal](https://airhanoi.hanoi.gov.vn/)
 - [OpenAQ API](https://docs.openaq.org/)
-- [NASA FIRMS active-fire data](https://firms.modaps.eosdis.nasa.gov/active_fire/)
 - [Copernicus Atmosphere Monitoring Service](https://www.copernicus.eu/en/copernicus-services/atmosphere)
 - OpenStreetMap for roads and public locations
 
