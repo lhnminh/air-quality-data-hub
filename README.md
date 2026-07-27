@@ -193,6 +193,11 @@ retrieve representative values for the eight Hanoi pilot districts shown on the
 dashboard map. The map only displays districts with both complete weather and
 modeled pollutant records, so every selectable district has a full status.
 
+Run `uv run python collect_traffic.py` to collect real-time TomTom road-flow
+data at one representative major-road point in each pilot district. Add a
+`TOMTOM_API_KEY` to `.env` first. Traffic speed is displayed as investigation
+context only; it does not establish that traffic caused a pollution event.
+
 ## Data required
 
 | Dataset | Minimum fields | Purpose |

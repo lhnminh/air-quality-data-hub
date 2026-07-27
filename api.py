@@ -8,6 +8,7 @@ from database import (
     get_district_statuses,
     get_recent_modeled_air_quality_observations,
     get_recent_observations,
+    get_recent_traffic_observations,
     get_recent_weather_observations,
 )
 
@@ -62,6 +63,17 @@ def recent_modeled_air_quality_observations(
     limit: int = Query(default=20, ge=1, le=100),
 ) -> dict:
     observations = get_recent_modeled_air_quality_observations(limit=limit)
+    return {
+        "count": len(observations),
+        "observations": observations,
+    }
+
+
+@app.get("/api/traffic")
+def recent_traffic_observations(
+    limit: int = Query(default=20, ge=1, le=100),
+) -> dict:
+    observations = get_recent_traffic_observations(limit=limit)
     return {
         "count": len(observations),
         "observations": observations,

@@ -70,6 +70,7 @@ Fill in:
 
 ```text
 IQAIR_API_KEY=...
+TOMTOM_API_KEY=...
 DATABASE_URL=...
 DATAHUB_POSTGRES_HOST=...
 FRONTEND_URL=http://localhost:3000
@@ -213,6 +214,20 @@ uv run python main.py
 
 The command calls IQAir once and writes the observation to Neon. The deployed
 frontend can then read it through the deployed API by pressing **Refresh data**.
+
+## Collect traffic context
+
+From the project root on the host Mac:
+
+```bash
+uv run python collect_traffic.py
+```
+
+The collector calls TomTom Traffic Flow at one representative major-road point
+per pilot district and stores the current and free-flow speeds in Neon. Add
+`TOMTOM_API_KEY` to the host's `.env`; never add it to the frontend or commit it.
+Run DataHub ingestion again after the first collection so it catalogs the new
+`traffic_observations` table.
 
 ## Collect weather and wind context
 

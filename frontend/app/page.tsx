@@ -8,6 +8,7 @@ import {
   type AirObservation,
   type DistrictStatus,
   type ModeledAirQualityObservation,
+  type TrafficObservation,
   type WeatherObservation,
 } from "./mock-data";
 
@@ -73,6 +74,20 @@ async function requestDistrictStatuses() {
   }
 }
 
+async function requestTraffic() {
+  try {
+    const response = await fetch(`${apiUrl}/api/traffic?limit=8`);
+    if (!response.ok) return null;
+
+    const result = (await response.json()) as {
+      observations: TrafficObservation[];
+    };
+    return result.observations;
+  } catch {
+    return null;
+  }
+}
+
 function readablePollutant(code: string) {
   const pollutantNames: Record<string, string> = {
     p1: "PM10",
@@ -113,6 +128,14 @@ function modeLabel(mode: DataMode) {
   return "Sample data";
 }
 
+function congestionLabel(currentSpeed?: number | null, freeFlowSpeed?: number | null) {
+  if (!currentSpeed || !freeFlowSpeed) return "Awaiting traffic data";
+  const ratio = currentSpeed / freeFlowSpeed;
+  if (ratio >= 0.8) return "Free-flowing";
+  if (ratio >= 0.5) return "Moderate congestion";
+  return "Heavy congestion";
+}
+
 export default function Home() {
   const [observations, setObservations] = useState<AirObservation[]>([]);
   const [districtStatuses, setDistrictStatuses] = useState<DistrictStatus[]>([]);
@@ -121,6 +144,7 @@ export default function Home() {
   const [modeledAirQualityMode, setModeledAirQualityMode] =
     useState<DataMode>("loading");
   const [districtMode, setDistrictMode] = useState<DataMode>("loading");
+  const [trafficMode, setTrafficMode] = useState<DataMode>("loading");
   const [selectedDistrictName, setSelectedDistrictName] = useState("Hoan Kiem");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
