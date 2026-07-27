@@ -8,13 +8,45 @@ import {
   type AirObservation,
   type DistrictStatus,
   type ModeledAirQualityObservation,
-  type TrafficObservation,
   type WeatherObservation,
 } from "./mock-data";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type DataMode = "loading" | "postgresql" | "demo";
+
+type InvestigationReport = {
+  title: string;
+  summary: string;
+  numeric_summary: Array<{ label: string; value: string; source: string }>;
+  potential_causes: Array<{ label: string; detail: string }>;
+  data_quality: string;
+  ai_status?: string;
+  recommended_action?: {
+    type: string;
+    description: string;
+    requires_human_approval: boolean;
+  };
+  hypothesis_ranking?: Array<{
+    label: string;
+    score: number;
+    supporting_evidence: string[];
+    contradicting_evidence: string[];
+  }>;
+  assessment_method?: string;
+};
+
+type AgentToolTrace = {
+  tool_name: string;
+  status: string;
+  summary: string;
+};
+
+type SavedInvestigation = {
+  investigation_id: number;
+  status: string;
+  action: { action_type: string; status: string; description: string };
+};
 
 // Loading the map only in the browser keeps MapLibre away from server rendering.
 const districtMapModule = import("./district-map");
@@ -74,20 +106,6 @@ async function requestDistrictStatuses() {
   }
 }
 
-async function requestTraffic() {
-  try {
-    const response = await fetch(`${apiUrl}/api/traffic?limit=8`);
-    if (!response.ok) return null;
-
-    const result = (await response.json()) as {
-      observations: TrafficObservation[];
-    };
-    return result.observations;
-  } catch {
-    return null;
-  }
-}
-
 function readablePollutant(code: string) {
   const pollutantNames: Record<string, string> = {
     p1: "PM10",
@@ -98,15 +116,6 @@ function readablePollutant(code: string) {
     co: "CO",
   };
   return pollutantNames[code.toLowerCase()] ?? code.toUpperCase();
-}
-
-function aqiDescription(aqi: number) {
-  if (aqi <= 50) return "Good";
-  if (aqi <= 100) return "Moderate";
-  if (aqi <= 150) return "Unhealthy for sensitive groups";
-  if (aqi <= 200) return "Unhealthy";
-  if (aqi <= 300) return "Very unhealthy";
-  return "Hazardous";
 }
 
 function formatTime(value: string) {
@@ -128,14 +137,6 @@ function modeLabel(mode: DataMode) {
   return "Sample data";
 }
 
-function congestionLabel(currentSpeed?: number | null, freeFlowSpeed?: number | null) {
-  if (!currentSpeed || !freeFlowSpeed) return "Awaiting traffic data";
-  const ratio = currentSpeed / freeFlowSpeed;
-  if (ratio >= 0.8) return "Free-flowing";
-  if (ratio >= 0.5) return "Moderate congestion";
-  return "Heavy congestion";
-}
-
 export default function Home() {
   const [observations, setObservations] = useState<AirObservation[]>([]);
   const [districtStatuses, setDistrictStatuses] = useState<DistrictStatus[]>([]);
@@ -144,9 +145,15 @@ export default function Home() {
   const [modeledAirQualityMode, setModeledAirQualityMode] =
     useState<DataMode>("loading");
   const [districtMode, setDistrictMode] = useState<DataMode>("loading");
-  const [trafficMode, setTrafficMode] = useState<DataMode>("loading");
   const [selectedDistrictName, setSelectedDistrictName] = useState("Hoan Kiem");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [chatPrompt, setChatPrompt] = useState("");
+  const [report, setReport] = useState<InvestigationReport | null>(null);
+  const [toolTrace, setToolTrace] = useState<AgentToolTrace[]>([]);
+  const [savedInvestigation, setSavedInvestigation] =
+    useState<SavedInvestigation | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   const applyResults = useCallback(
     (
@@ -213,13 +220,54 @@ export default function Home() {
   const selectedDistrict = districtStatuses.find(
     (district) => district.district_name === selectedDistrictName,
   );
-  const displayedAqi = selectedDistrict?.us_aqi;
   const displayedLocation = selectedDistrict?.district_name ?? selectedDistrictName;
   const chartRows = useMemo(
     () => [...observations].slice(0, 8).reverse(),
     [observations],
   );
   const maxChartAqi = Math.max(...chartRows.map((row) => row.aqi_us), 120);
+
+  const selectDistrictForInspection = useCallback((districtName: string) => {
+    setSelectedDistrictName(districtName);
+    setChatPrompt(`Inspect ${districtName} air quality`);
+    setReport(null);
+    setToolTrace([]);
+    setSavedInvestigation(null);
+    setReportError(null);
+  }, []);
+
+  const sendInspection = useCallback(async () => {
+    const prompt = chatPrompt.trim();
+    if (!prompt || isGeneratingReport) return;
+
+    setIsGeneratingReport(true);
+    setReportError(null);
+    try {
+      const response = await fetch(`${apiUrl}/api/investigate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ district_name: selectedDistrictName, prompt }),
+      });
+      const result = (await response.json()) as {
+        report?: InvestigationReport;
+        tool_trace?: AgentToolTrace[];
+        investigation?: SavedInvestigation;
+        detail?: string;
+      };
+      if (!response.ok || !result.report) {
+        throw new Error(result.detail ?? "AirTrace could not generate a report.");
+      }
+      setReport(result.report);
+      setToolTrace(result.tool_trace ?? []);
+      setSavedInvestigation(result.investigation ?? null);
+    } catch (error) {
+      setReportError(
+        error instanceof Error ? error.message : "AirTrace could not generate a report.",
+      );
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  }, [chatPrompt, isGeneratingReport, selectedDistrictName]);
 
   return (
     <main className="app-shell" id="top">
@@ -270,8 +318,8 @@ export default function Home() {
           </div>
 
           <p className="panel-intro">
-            A preview of the evidence AirTrace will use before producing an
-            explanation.
+            Trace the evidence used for an inspection before Gemini writes its
+            report.
           </p>
 
           <ol className="activity-flow">
@@ -300,20 +348,20 @@ export default function Home() {
                 <small>{modeLabel(modeledAirQualityMode)} · CAMS model</small>
               </div>
             </li>
-            <li className="planned">
+            <li className={isGeneratingReport ? "active" : "planned"}>
               <span className="flow-node" />
               <div>
                 <strong>Build an AI summary</strong>
-                <small>Coming soon · AI service not connected</small>
+                <small>{isGeneratingReport ? "Gemini is reviewing selected evidence" : "Ready when you send an inspection"}</small>
               </div>
             </li>
           </ol>
 
           <div className="draft-note">
-            <strong>Still being built</strong>
+            <strong>Evidence-first reporting</strong>
             <p>
-              This becomes an interactive evidence graph when the AI service is
-              connected.
+              Gemini receives a limited package of the selected district&apos;s
+              latest data. It does not get direct database access.
             </p>
           </div>
         </aside>
@@ -336,7 +384,7 @@ export default function Home() {
 
             <DistrictMap
               districts={districtStatuses}
-              onSelect={setSelectedDistrictName}
+              onSelect={selectDistrictForInspection}
               selectedDistrictName={selectedDistrictName}
             />
 
@@ -347,7 +395,7 @@ export default function Home() {
               </div>
               <div className="report-context">
                 <span className="report-context-dot" />
-                <span>Selected as context for the future AI report</span>
+                <span>Click a district to prepare its AI inspection</span>
               </div>
             </div>
           </article>
@@ -421,32 +469,98 @@ export default function Home() {
               <p className="eyebrow">AirTrace assistant</p>
               <h2 id="chat-title">Ask about the air</h2>
             </div>
-            <span className="draft-badge">Draft</span>
+            <span className="source-badge">Gemini</span>
           </div>
 
           <div className="chat-status">
             <span className="chat-status-icon">AI</span>
             <div>
-              <strong>Chat is being built</strong>
-              <small>The AI service is not connected yet.</small>
+              <strong>Inspect a district</strong>
+              <small>Click a district to prepare a prompt, then send it.</small>
             </div>
           </div>
 
-          <div className="chat-thread" aria-label="Draft chatbot conversation">
+          <div className="chat-thread" aria-label="AirTrace investigation report">
             <div className="chat-message assistant-message">
-              <span>Draft report preview</span>
+              <span>Selected district</span>
               <p>
-                {typeof displayedAqi === "number"
-                  ? `${displayedLocation} is currently ${aqiDescription(displayedAqi).toLowerCase()}. The AI report will explain the supporting evidence.`
-                  : `A ${displayedLocation} summary will appear here when district data is available.`}
+                {chatPrompt || `Click ${displayedLocation} on the map to prepare an inspection.`}
               </p>
             </div>
+            {report && (
+              <article className="report-card">
+                <span>AirTrace report</span>
+                <h3>{report.title}</h3>
+                <p>{report.summary}</p>
+                <dl className="report-metrics">
+                  {report.numeric_summary.map((metric) => (
+                    <div key={`${metric.label}-${metric.source}`}>
+                      <dt>{metric.label}</dt>
+                      <dd>{metric.value}</dd>
+                      <small>{metric.source}</small>
+                    </div>
+                  ))}
+                </dl>
+                <div className="report-causes">
+                  <strong>Potential cause analysis</strong>
+                  {report.potential_causes.map((cause) => (
+                    <p key={`${cause.label}-${cause.detail}`}><b>{cause.label}:</b> {cause.detail}</p>
+                  ))}
+                </div>
+                {report.hypothesis_ranking && (
+                  <div className="hypothesis-ranking">
+                    <strong>Evidence ranking</strong>
+                    <small>{report.assessment_method}</small>
+                    {report.hypothesis_ranking.map((hypothesis) => (
+                      <div className="hypothesis-row" key={hypothesis.label}>
+                        <div>
+                          <b>{hypothesis.label}</b>
+                          <span>Evidence score {hypothesis.score}/100</span>
+                        </div>
+                        {hypothesis.supporting_evidence.length > 0 && (
+                          <p><em>Supports:</em> {hypothesis.supporting_evidence.join(" ")}</p>
+                        )}
+                        {hypothesis.contradicting_evidence.length > 0 && (
+                          <p><em>Limits:</em> {hypothesis.contradicting_evidence.join(" ")}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="report-quality">{report.data_quality}</p>
+                {report.ai_status && <p className="report-quality">{report.ai_status}</p>}
+              </article>
+            )}
+            {savedInvestigation && (
+              <article className="agent-audit-card">
+                <span>Agent action</span>
+                <strong>Human review needed</strong>
+                <p>{savedInvestigation.action.description}</p>
+                <small>
+                  Investigation #{savedInvestigation.investigation_id} · {savedInvestigation.status.replaceAll("_", " ")}
+                </small>
+              </article>
+            )}
+            {toolTrace.length > 0 && (
+              <article className="tool-trace-card">
+                <span>Agent evidence trail</span>
+                {toolTrace.map((tool, index) => (
+                  <div key={`${tool.tool_name}-${index}`}>
+                    <strong>{tool.tool_name.replaceAll("_", " ")}</strong>
+                    <small className={`tool-status ${tool.status}`}>{tool.status.replaceAll("_", " ")}</small>
+                    <p>{tool.summary}</p>
+                  </div>
+                ))}
+              </article>
+            )}
+            {reportError && <p className="report-error">{reportError}</p>}
           </div>
 
           <div className="suggested-prompts">
-            <span>Suggested prompts · Coming soon</span>
-            <button type="button" disabled>Why is AQI elevated?</button>
-            <button type="button" disabled>Which district has cleaner air?</button>
+            <span>Suggested prompt</span>
+            <button type="button" onClick={() => setChatPrompt(`Inspect ${displayedLocation} air quality`)}>
+              Inspect {displayedLocation} air quality
+            </button>
           </div>
 
           <div className="chat-composer">
@@ -455,12 +569,23 @@ export default function Home() {
               <input
                 id="chat-input"
                 type="text"
-                placeholder="Chat coming soon"
-                disabled
+                placeholder="Click a district to prepare an inspection"
+                value={chatPrompt}
+                onChange={(event) => setChatPrompt(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") void sendInspection();
+                }}
               />
-              <button type="button" disabled aria-label="Send message">→</button>
+              <button
+                type="button"
+                onClick={() => void sendInspection()}
+                disabled={!chatPrompt.trim() || isGeneratingReport}
+                aria-label="Send inspection"
+              >
+                →
+              </button>
             </div>
-            <small>Draft interface · messages cannot be sent yet</small>
+            <small>Gemini receives only the selected district&apos;s bounded evidence package.</small>
           </div>
         </aside>
       </div>

@@ -229,6 +229,36 @@ per pilot district and stores the current and free-flow speeds in Neon. Add
 Run DataHub ingestion again after the first collection so it catalogs the new
 `traffic_observations` table.
 
+## Enable Gemini district reports
+
+Add these secrets to the API environment (and to the local `.env` for local
+development):
+
+```text
+GEMINI_API_KEY=your_server_side_key
+GEMINI_MODEL=gemini-3.1-flash-lite
+DATAHUB_GMS_URL=http://localhost:8080
+DATAHUB_GMS_TOKEN=your_datahub_personal_access_token
+DATAHUB_MCP_WRITE_ENABLED=true
+```
+
+The frontend calls `POST /api/investigate` after the user sends a district
+inspection prompt. Gemini chooses from a backend allowlist of tools. The backend
+uses DataHub MCP to verify the live schemas and source contracts for CAMS, IQAir,
+weather, and TomTom, retrieves bounded Neon evidence/history, and runs a
+transparent source-hypothesis assessment. Gemini selects relevant fact IDs, while
+the backend supplies the actual values and source labels. The API saves the report,
+tool evidence, and a human-review action to Neon. When
+`DATAHUB_MCP_WRITE_ENABLED=true`, it also writes a concise investigation document
+to DataHub through DataHub's REST API. The browser never receives the Gemini key,
+DataHub token, or direct database access.
+
+For local open-source DataHub, start DataHub first and create a personal access
+token in its UI. Keep the GMS token in `.env`; do not commit it. The official
+self-hosted MCP server uses `DATAHUB_GMS_URL` and `DATAHUB_GMS_TOKEN`. Open the
+browser interface at `http://localhost:9002`; `http://localhost:8080` is the GMS
+API and is not intended to be opened as a website.
+
 ## Collect weather and wind context
 
 From the project root on the host Mac:
@@ -264,6 +294,8 @@ model estimates, not sensor readings.
 - [ ] Frontend says **Reading PostgreSQL**.
 - [ ] `.env` and API keys are not committed.
 - [ ] Local DataHub shows the PostgreSQL dataset.
+- [ ] `DATAHUB_GMS_URL` and `DATAHUB_GMS_TOKEN` are set for the agent's MCP connection.
+- [ ] A district inspection creates an `awaiting_human_review` Neon record.
 - [ ] `main.py` can add a new IQAir observation.
 
 ## Common problems
@@ -297,8 +329,9 @@ uv run python scripts/inspect_database.py
 The API currently allows one exact frontend origin. Use the production frontend
 URL for judging. Support for multiple preview origins can be added later.
 
-## Not deployed yet
+## Agent safety boundary
 
-The AI agent and DataHub query workflow are still future application features.
-This deployment prepares the working dashboard, API, PostgreSQL connection, and
-local DataHub catalog for that next stage.
+AirTrace never gives Gemini database credentials or arbitrary SQL access. Gemini
+can only request the backend's allowlisted tools for the selected district. Its
+only automated action is to create an investigation marked
+`awaiting_human_review`; public alerts and operational actions require a human.
