@@ -107,15 +107,6 @@ function formatTime(value: string) {
   }).format(date);
 }
 
-function windDirectionLabel(degrees: number) {
-  const directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return directions[Math.round(degrees / 45) % directions.length];
-}
-
-function formatNumber(value: number | null | undefined, digits = 1) {
-  return typeof value === "number" ? value.toFixed(digits) : "–";
-}
-
 function modeLabel(mode: DataMode) {
   if (mode === "loading") return "Checking";
   if (mode === "postgresql") return "Connected";
@@ -200,17 +191,11 @@ export default function Home() {
   );
   const displayedAqi = selectedDistrict?.us_aqi;
   const displayedLocation = selectedDistrict?.district_name ?? selectedDistrictName;
-  const displayedObservedAt = selectedDistrict?.air_quality_observed_at;
-  const displayedWindSpeed = selectedDistrict?.wind_speed_kmh;
-  const displayedWindDirection = selectedDistrict?.wind_direction_degrees;
   const chartRows = useMemo(
     () => [...observations].slice(0, 8).reverse(),
     [observations],
   );
   const maxChartAqi = Math.max(...chartRows.map((row) => row.aqi_us), 120);
-  const collectedDistrictCount = districtStatuses.filter(
-    (district) => district.us_aqi !== null && district.us_aqi !== undefined,
-  ).length;
 
   return (
     <main className="app-shell" id="top">
@@ -303,8 +288,8 @@ export default function Home() {
           <div className="draft-note">
             <strong>Still being built</strong>
             <p>
-              This text flow will become an interactive graph showing sources,
-              tool calls, and evidence links.
+              This becomes an interactive evidence graph when the AI service is
+              connected.
             </p>
           </div>
         </aside>
@@ -331,54 +316,15 @@ export default function Home() {
               selectedDistrictName={selectedDistrictName}
             />
 
-            <div className="district-overview">
-              <div className="district-primary">
+            <div className="district-selection">
+              <div>
                 <span className="metric-label">Selected district</span>
                 <strong>{displayedLocation}</strong>
-                <small>
-                  {displayedObservedAt
-                    ? `Observed ${formatTime(displayedObservedAt)}`
-                    : "Awaiting district collection"}
-                </small>
               </div>
-              <div className="aqi-summary">
-                <span className="metric-label">US AQI</span>
-                <strong>{displayedAqi ?? "–"}</strong>
-                <small>
-                  {typeof displayedAqi === "number"
-                    ? aqiDescription(displayedAqi)
-                    : "No current reading"}
-                </small>
+              <div className="report-context">
+                <span className="report-context-dot" />
+                <span>Selected as context for the future AI report</span>
               </div>
-              <div>
-                <span className="metric-label">PM2.5</span>
-                <strong>{formatNumber(selectedDistrict?.pm2_5_ug_m3)} µg/m³</strong>
-                <small>CAMS model</small>
-              </div>
-              <div>
-                <span className="metric-label">Wind</span>
-                <strong>
-                  {formatNumber(displayedWindSpeed)} km/h{" "}
-                  {displayedWindDirection === null ||
-                  displayedWindDirection === undefined
-                    ? "–"
-                    : windDirectionLabel(displayedWindDirection)}
-                </strong>
-                <small>
-                  {formatNumber(selectedDistrict?.temperature_c)}°C ·{" "}
-                  {formatNumber(selectedDistrict?.relative_humidity_percent, 0)}%
-                  humidity
-                </small>
-              </div>
-            </div>
-
-            <div className="pollutant-strip" aria-label="Selected district pollutant values">
-              <div><span>PM10</span><strong>{formatNumber(selectedDistrict?.pm10_ug_m3)}</strong></div>
-              <div><span>NO₂</span><strong>{formatNumber(selectedDistrict?.nitrogen_dioxide_ug_m3)}</strong></div>
-              <div><span>SO₂</span><strong>{formatNumber(selectedDistrict?.sulphur_dioxide_ug_m3)}</strong></div>
-              <div><span>CO</span><strong>{formatNumber(selectedDistrict?.carbon_monoxide_ug_m3)}</strong></div>
-              <div><span>O₃</span><strong>{formatNumber(selectedDistrict?.ozone_ug_m3)}</strong></div>
-              <div><span>Coverage</span><strong>{collectedDistrictCount}/8</strong></div>
             </div>
           </article>
 
@@ -426,7 +372,7 @@ export default function Home() {
                     </tr>
                   </thead>
                   <tbody>
-                    {observations.slice(0, 5).map((row, index) => (
+                    {observations.slice(0, 4).map((row, index) => (
                       <tr key={`${row.observed_at}-history-${index}`}>
                         <td>{formatTime(row.observed_at)}</td>
                         <td><strong>{row.aqi_us}</strong></td>
@@ -464,22 +410,11 @@ export default function Home() {
 
           <div className="chat-thread" aria-label="Draft chatbot conversation">
             <div className="chat-message assistant-message">
-              <span>AirTrace · Preview</span>
-              <p>
-                Once connected, I&apos;ll use the selected district, weather, and
-                historical readings to explain current conditions.
-              </p>
-            </div>
-            <div className="chat-message user-message">
-              <span>Example question</span>
-              <p>Summarize today&apos;s air quality in {displayedLocation}.</p>
-            </div>
-            <div className="chat-message assistant-message muted-message">
-              <span>Draft response</span>
+              <span>Draft report preview</span>
               <p>
                 {typeof displayedAqi === "number"
-                  ? `${displayedLocation} is currently ${aqiDescription(displayedAqi).toLowerCase()} at US AQI ${displayedAqi}.`
-                  : "A summary will appear here when district data is available."}
+                  ? `${displayedLocation} is currently ${aqiDescription(displayedAqi).toLowerCase()}. The AI report will explain the supporting evidence.`
+                  : `A ${displayedLocation} summary will appear here when district data is available.`}
               </p>
             </div>
           </div>
@@ -488,7 +423,6 @@ export default function Home() {
             <span>Suggested prompts · Coming soon</span>
             <button type="button" disabled>Why is AQI elevated?</button>
             <button type="button" disabled>Which district has cleaner air?</button>
-            <button type="button" disabled>Summarize the last 24 hours</button>
           </div>
 
           <div className="chat-composer">

@@ -4,10 +4,11 @@ import test from "node:test";
 
 
 test("contains the four-panel AirTrace workspace and honest draft states", async () => {
-  const [page, layout, styles] = await Promise.all([
+  const [page, layout, styles, districtMap] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/district-map.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(layout, /AirTrace Vietnam/i);
@@ -25,5 +26,8 @@ test("contains the four-panel AirTrace workspace and honest draft states", async
   assert.match(styles, /\.map-panel/);
   assert.match(styles, /\.history-panel/);
   assert.match(styles, /\.chat-panel/);
+  assert.match(page, /Selected as context for the future AI report/i);
+  assert.doesNotMatch(page, /className="pollutant-strip"/);
+  assert.doesNotMatch(districtMap, /status\?\.us_aqi/);
   assert.doesNotMatch(page, /DuckDB/i);
 });

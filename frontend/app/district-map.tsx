@@ -79,14 +79,15 @@ export default function DistrictMap({
     markers.current = DISTRICTS.filter((district) =>
       districts.some((item) => item.district_name === district.name),
     ).map((district) => {
-      const status = districts.find((item) => item.district_name === district.name);
       const element = document.createElement("button");
       element.type = "button";
       element.className = `map-district-marker${
         district.name === selectedDistrictName ? " selected" : ""
       }`;
       element.setAttribute("aria-label", `Show ${district.name} district status`);
-      element.innerHTML = `<strong>${status?.us_aqi ?? "–"}</strong><span>${district.name}</span>`;
+      const label = document.createElement("span");
+      label.textContent = district.name;
+      element.append(label);
       element.addEventListener("click", () => onSelect(district.name));
 
       return new maplibregl.Marker({ element, anchor: "center" })
