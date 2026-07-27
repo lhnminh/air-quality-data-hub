@@ -519,11 +519,21 @@ h2 {
 
 .chart {
   align-items: end;
-  border-bottom: 1px solid var(--line);
   display: flex;
   gap: 7px;
   height: clamp(135px, 18vh, 175px);
-  padding: 12px 2px 0;
+  padding: 12px 2px 22px;
+  position: relative;
+}
+
+.chart::after {
+  background: var(--line);
+  bottom: 21px;
+  content: "";
+  height: 1px;
+  left: 0;
+  position: absolute;
+  right: 0;
 }
 
 .chart-column {
@@ -534,6 +544,8 @@ h2 {
   flex-direction: column;
   justify-content: end;
   min-width: 22px;
+  position: relative;
+  z-index: 1;
 }
 
 .chart-column > span {
@@ -551,9 +563,14 @@ h2 {
 }
 
 .chart-column small {
+  bottom: -20px;
   color: var(--muted);
   font-size: 8px;
-  margin: 6px 0 -17px;
+  left: 50%;
+  margin: 0;
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .table-scroll {
