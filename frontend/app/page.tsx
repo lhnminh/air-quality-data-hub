@@ -1,23 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  mockObservations,
   mockDistrictStatuses,
+  mockObservations,
   type AirObservation,
   type DistrictStatus,
   type ModeledAirQualityObservation,
   type WeatherObservation,
 } from "./mock-data";
 
-const apiUrl =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 type DataMode = "loading" | "postgresql" | "demo";
 
-// Start fetching the map bundle as soon as the page JavaScript starts, instead
-// of waiting until React reaches the map component during rendering.
+// Loading the map only in the browser keeps MapLibre away from server rendering.
 const districtMapModule = import("./district-map");
 const DistrictMap = dynamic(() => districtMapModule, { ssr: false });
 
@@ -118,11 +116,15 @@ function formatNumber(value: number | null | undefined, digits = 1) {
   return typeof value === "number" ? value.toFixed(digits) : "–";
 }
 
+function modeLabel(mode: DataMode) {
+  if (mode === "loading") return "Checking";
+  if (mode === "postgresql") return "Connected";
+  return "Sample data";
+}
+
 export default function Home() {
-  const [observations, setObservations] =
-    useState<AirObservation[]>([]);
-  const [districtStatuses, setDistrictStatuses] =
-    useState<DistrictStatus[]>([]);
+  const [observations, setObservations] = useState<AirObservation[]>([]);
+  const [districtStatuses, setDistrictStatuses] = useState<DistrictStatus[]>([]);
   const [dataMode, setDataMode] = useState<DataMode>("loading");
   const [weatherMode, setWeatherMode] = useState<DataMode>("loading");
   const [modeledAirQualityMode, setModeledAirQualityMode] =
@@ -131,46 +133,50 @@ export default function Home() {
   const [selectedDistrictName, setSelectedDistrictName] = useState("Hoan Kiem");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  const loadObservations = useCallback(async () => {
-    const [result, weatherResult, modeledAirQualityResult, districtResult] = await Promise.all([
-      requestObservations(),
-      requestWeather(),
-      requestModeledAirQuality(),
-      requestDistrictStatuses(),
-    ]);
-    if (!result?.length) {
-      setObservations(mockObservations);
-      setDataMode("demo");
-    } else {
-      setObservations(result);
-      setDataMode("postgresql");
-    }
-    if (!weatherResult?.length) {
-      setWeatherMode("demo");
-    } else {
-      setWeatherMode("postgresql");
-    }
-    if (!modeledAirQualityResult?.length) {
-      setModeledAirQualityMode("demo");
-    } else {
-      setModeledAirQualityMode("postgresql");
-    }
-    if (districtResult === null) {
-      setDistrictStatuses(mockDistrictStatuses);
-      setDistrictMode("demo");
-    } else {
-      setDistrictStatuses(districtResult);
-      setDistrictMode("postgresql");
-      if (districtResult.length) {
+  const applyResults = useCallback(
+    (
+      observationResult: AirObservation[] | null,
+      weatherResult: WeatherObservation[] | null,
+      modeledResult: ModeledAirQualityObservation[] | null,
+      districtResult: DistrictStatus[] | null,
+    ) => {
+      if (!observationResult?.length) {
+        setObservations(mockObservations);
+        setDataMode("demo");
+      } else {
+        setObservations(observationResult);
+        setDataMode("postgresql");
+      }
+
+      setWeatherMode(weatherResult?.length ? "postgresql" : "demo");
+      setModeledAirQualityMode(modeledResult?.length ? "postgresql" : "demo");
+
+      if (!districtResult?.length) {
+        setDistrictStatuses(mockDistrictStatuses);
+        setDistrictMode("demo");
+      } else {
+        setDistrictStatuses(districtResult);
+        setDistrictMode("postgresql");
         setSelectedDistrictName((current) =>
           districtResult.some((district) => district.district_name === current)
             ? current
             : districtResult[0].district_name,
         );
       }
-    }
+    },
+    [],
+  );
+
+  const loadDashboard = useCallback(async () => {
+    const results = await Promise.all([
+      requestObservations(),
+      requestWeather(),
+      requestModeledAirQuality(),
+      requestDistrictStatuses(),
+    ]);
+    applyResults(...results);
     setIsRefreshing(false);
-  }, []);
+  }, [applyResults]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,51 +186,14 @@ export default function Home() {
       requestWeather(),
       requestModeledAirQuality(),
       requestDistrictStatuses(),
-    ]).then(([
-      result,
-      weatherResult,
-      modeledAirQualityResult,
-      districtResult,
-    ]) => {
-      if (cancelled) return;
-
-      if (!result?.length) {
-        setObservations(mockObservations);
-        setDataMode("demo");
-      } else {
-        setObservations(result);
-        setDataMode("postgresql");
-      }
-      if (!weatherResult?.length) {
-        setWeatherMode("demo");
-      } else {
-        setWeatherMode("postgresql");
-      }
-      if (!modeledAirQualityResult?.length) {
-        setModeledAirQualityMode("demo");
-      } else {
-        setModeledAirQualityMode("postgresql");
-      }
-      if (districtResult === null) {
-        setDistrictStatuses(mockDistrictStatuses);
-        setDistrictMode("demo");
-      } else {
-        setDistrictStatuses(districtResult);
-        setDistrictMode("postgresql");
-        if (districtResult.length) {
-          setSelectedDistrictName((current) =>
-            districtResult.some((district) => district.district_name === current)
-              ? current
-              : districtResult[0].district_name,
-          );
-        }
-      }
+    ]).then((results) => {
+      if (!cancelled) applyResults(...results);
     });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyResults]);
 
   const selectedDistrict = districtStatuses.find(
     (district) => district.district_name === selectedDistrictName,
@@ -234,26 +203,17 @@ export default function Home() {
   const displayedObservedAt = selectedDistrict?.air_quality_observed_at;
   const displayedWindSpeed = selectedDistrict?.wind_speed_kmh;
   const displayedWindDirection = selectedDistrict?.wind_direction_degrees;
-  const displayedTemperature = selectedDistrict?.temperature_c;
-  const displayedHumidity = selectedDistrict?.relative_humidity_percent;
-  const displayedPm25 = selectedDistrict?.pm2_5_ug_m3;
-  const displayedPm10 = selectedDistrict?.pm10_ug_m3;
-  const displayedNo2 = selectedDistrict?.nitrogen_dioxide_ug_m3;
-  const displayedSo2 = selectedDistrict?.sulphur_dioxide_ug_m3;
-  const displayedCo = selectedDistrict?.carbon_monoxide_ug_m3;
-  const displayedOzone = selectedDistrict?.ozone_ug_m3;
-  const hasDistrictData = displayedAqi !== null && displayedAqi !== undefined;
-  const collectedDistrictCount = districtStatuses.filter(
-    (district) => district.us_aqi !== null && district.us_aqi !== undefined,
-  ).length;
   const chartRows = useMemo(
     () => [...observations].slice(0, 8).reverse(),
     [observations],
   );
   const maxChartAqi = Math.max(...chartRows.map((row) => row.aqi_us), 120);
+  const collectedDistrictCount = districtStatuses.filter(
+    (district) => district.us_aqi !== null && district.us_aqi !== undefined,
+  ).length;
 
   return (
-    <main>
+    <main className="app-shell" id="top">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="AirTrace home">
           <span className="brand-mark">A</span>
@@ -262,6 +222,11 @@ export default function Home() {
             <small>Vietnam</small>
           </span>
         </a>
+
+        <div className="workspace-title">
+          <span>Hanoi air-quality operations</span>
+          <small>Monitor · investigate · explain</small>
+        </div>
 
         <div className="header-actions">
           <div className={`data-status ${dataMode}`}>
@@ -276,7 +241,7 @@ export default function Home() {
             className="refresh-button"
             onClick={() => {
               setIsRefreshing(true);
-              void loadObservations();
+              void loadDashboard();
             }}
             disabled={isRefreshing}
           >
@@ -285,275 +250,261 @@ export default function Home() {
         </div>
       </header>
 
-      <div className="page" id="top">
-        <section className="intro">
-          <div>
-            <p className="eyebrow">Hanoi air-quality operations</p>
-            <h1>Know what the air is doing—and what to check next.</h1>
+      <div className="workspace">
+        <aside className="workspace-panel ai-panel" aria-labelledby="ai-activity-title">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">AI workspace</p>
+              <h1 id="ai-activity-title">Activity graph</h1>
+            </div>
+            <span className="draft-badge">Draft</span>
           </div>
-          <p className="intro-copy">
-            A first look at current observations, data health, and the evidence
-            AirTrace will use to investigate pollution events.
+
+          <p className="panel-intro">
+            A preview of the evidence AirTrace will use before producing an
+            explanation.
           </p>
-        </section>
 
-        {dataMode === "demo" && (
-          <aside className="demo-notice">
-            <strong>Showing sample data.</strong> Start the Python API to replace
-            these examples with rows from the PostgreSQL database.
-          </aside>
-        )}
-
-        <section className="overview-grid" aria-label="Current overview">
-          <article className="aqi-card">
-            <div className="card-heading">
-              <span>Current US AQI</span>
-              <span className="location-pill">{displayedLocation}</span>
-            </div>
-            <div className="aqi-reading">
-              <strong>{displayedAqi ?? "–"}</strong>
+          <ol className="activity-flow">
+            <li className={dataMode === "loading" ? "active" : "complete"}>
+              <span className="flow-node" />
               <div>
-                <span>
-                  {displayedAqi !== null && displayedAqi !== undefined
-                    ? aqiDescription(displayedAqi)
-                    : "Awaiting collection"}
-                </span>
-                <small>Modelled district AQI</small>
+                <strong>Read air-quality feed</strong>
+                <small>{modeLabel(dataMode)} · IQAir observations</small>
               </div>
-            </div>
-            <div className="aqi-scale" aria-label="AQI scale">
-              <span className="active" />
-              <span />
-              <span />
-              <span />
-              <span />
-            </div>
-            <p className="card-note">
-              Sensitive people may want to reduce prolonged outdoor activity.
-            </p>
-          </article>
+            </li>
+            <li className={weatherMode === "loading" ? "active" : "complete"}>
+              <span className="flow-node" />
+              <div>
+                <strong>Check weather and wind</strong>
+                <small>{modeLabel(weatherMode)} · Open-Meteo</small>
+              </div>
+            </li>
+            <li
+              className={
+                modeledAirQualityMode === "loading" ? "active" : "complete"
+              }
+            >
+              <span className="flow-node" />
+              <div>
+                <strong>Compare pollutant signals</strong>
+                <small>{modeLabel(modeledAirQualityMode)} · CAMS model</small>
+              </div>
+            </li>
+            <li className="planned">
+              <span className="flow-node" />
+              <div>
+                <strong>Build an AI summary</strong>
+                <small>Coming soon · AI service not connected</small>
+              </div>
+            </li>
+          </ol>
 
-          <article className="map-card">
-            <div className="card-heading">
-              <span>District explorer</span>
-              <span className="coordinates">
+          <div className="draft-note">
+            <strong>Still being built</strong>
+            <p>
+              This text flow will become an interactive graph showing sources,
+              tool calls, and evidence links.
+            </p>
+          </div>
+        </aside>
+
+        <section className="center-column" aria-label="Map and historic air quality">
+          <article className="workspace-panel map-panel" aria-labelledby="map-title">
+            <div className="panel-heading map-heading">
+              <div>
+                <p className="eyebrow">Current conditions</p>
+                <h2 id="map-title">Hanoi district map</h2>
+              </div>
+              <span className={`source-badge ${districtMode}`}>
                 {districtMode === "loading"
-                  ? "Loading district data…"
+                  ? "Loading districts"
                   : districtMode === "postgresql"
                     ? "Live model data"
-                    : "Sample data"}
+                    : "Sample district data"}
               </span>
             </div>
+
             <DistrictMap
               districts={districtStatuses}
               onSelect={setSelectedDistrictName}
               selectedDistrictName={selectedDistrictName}
             />
-            <div className="district-detail">
-              <strong>{selectedDistrict?.district_name}</strong>
-              <span>AQI {displayedAqi ?? "–"} · PM2.5 {formatNumber(displayedPm25)} µg/m³</span>
-              <small>Wind {formatNumber(displayedWindSpeed)} km/h {displayedWindDirection === null || displayedWindDirection === undefined ? "–" : windDirectionLabel(displayedWindDirection)}</small>
-            </div>
-          </article>
 
-          <article className="health-card">
-            <div className="card-heading">
-              <span>Data health</span>
-              <span className="health-label">Available</span>
-            </div>
-            <dl className="health-list">
-              <div>
-                <dt>Observed</dt>
-                <dd>{displayedObservedAt ? formatTime(displayedObservedAt) : "Awaiting collection"}</dd>
+            <div className="district-overview">
+              <div className="district-primary">
+                <span className="metric-label">Selected district</span>
+                <strong>{displayedLocation}</strong>
+                <small>
+                  {displayedObservedAt
+                    ? `Observed ${formatTime(displayedObservedAt)}`
+                    : "Awaiting district collection"}
+                </small>
+              </div>
+              <div className="aqi-summary">
+                <span className="metric-label">US AQI</span>
+                <strong>{displayedAqi ?? "–"}</strong>
+                <small>
+                  {typeof displayedAqi === "number"
+                    ? aqiDescription(displayedAqi)
+                    : "No current reading"}
+                </small>
               </div>
               <div>
-                <dt>Collected</dt>
-                <dd>{selectedDistrict?.weather_observed_at ? formatTime(selectedDistrict.weather_observed_at) : "Awaiting collection"}</dd>
+                <span className="metric-label">PM2.5</span>
+                <strong>{formatNumber(selectedDistrict?.pm2_5_ug_m3)} µg/m³</strong>
+                <small>CAMS model</small>
               </div>
               <div>
-                <dt>Provider</dt>
-                <dd>{hasDistrictData ? "Open-Meteo CAMS" : "No district record"}</dd>
-              </div>
-              <div>
-                <dt>Records loaded</dt>
-                <dd>{collectedDistrictCount} of 8 live</dd>
-              </div>
-            </dl>
-          </article>
-        </section>
-
-        <section className="detail-grid">
-          <article className="panel trend-panel">
-            <div className="panel-title">
-              <div>
-                <p className="eyebrow">City-wide IQAir observations</p>
-                <h2>Hanoi AQI trend</h2>
-              </div>
-              <span className="time-zone">Separate feed</span>
-            </div>
-            <p className="trend-note">
-              This is IQAir&apos;s city-wide series. It is not directly comparable
-              to the selected district&apos;s CAMS-modelled AQI above.
-            </p>
-            <div className="chart" aria-label="Recent AQI bar chart">
-              {chartRows.map((row, index) => (
-                <div className="chart-column" key={`${row.observed_at}-${index}`}>
-                  <span>{row.aqi_us}</span>
-                  <div
-                    className="chart-bar"
-                    style={{ height: `${Math.max((row.aqi_us / maxChartAqi) * 100, 8)}%` }}
-                  />
-                  <small>{formatTime(row.observed_at).split(", ").at(-1)}</small>
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="panel investigation-panel">
-            <div className="panel-title">
-              <div>
-                <p className="eyebrow">Source investigation</p>
-                <h2>Weather context available</h2>
-              </div>
-              <span className="not-ready">Not active</span>
-            </div>
-            <p className="investigation-copy">
-              Wind can show whether a possible source sits upwind of Hanoi. This
-              is useful context, but one city-level air reading is still not enough
-              to attribute a pollution event.
-            </p>
-            <div className="evidence-list">
-              <div><span>Air quality</span><strong className="connected">Connected</strong></div>
-              <div>
-                <span>Weather and wind</span>
-                <strong className={weatherMode === "postgresql" ? "connected" : undefined}>
-                  {weatherMode === "postgresql" ? "Connected" : "Sample"}
+                <span className="metric-label">Wind</span>
+                <strong>
+                  {formatNumber(displayedWindSpeed)} km/h{" "}
+                  {displayedWindDirection === null ||
+                  displayedWindDirection === undefined
+                    ? "–"
+                    : windDirectionLabel(displayedWindDirection)}
                 </strong>
+                <small>
+                  {formatNumber(selectedDistrict?.temperature_c)}°C ·{" "}
+                  {formatNumber(selectedDistrict?.relative_humidity_percent, 0)}%
+                  humidity
+                </small>
               </div>
-              <div>
-                <span>Pollutant signature</span>
-                <strong className={modeledAirQualityMode === "postgresql" ? "connected" : undefined}>
-                  {modeledAirQualityMode === "postgresql" ? "Connected" : "Sample"}
-                </strong>
-              </div>
-              <div><span>Traffic and fires</span><strong>Planned</strong></div>
+            </div>
+
+            <div className="pollutant-strip" aria-label="Selected district pollutant values">
+              <div><span>PM10</span><strong>{formatNumber(selectedDistrict?.pm10_ug_m3)}</strong></div>
+              <div><span>NO₂</span><strong>{formatNumber(selectedDistrict?.nitrogen_dioxide_ug_m3)}</strong></div>
+              <div><span>SO₂</span><strong>{formatNumber(selectedDistrict?.sulphur_dioxide_ug_m3)}</strong></div>
+              <div><span>CO</span><strong>{formatNumber(selectedDistrict?.carbon_monoxide_ug_m3)}</strong></div>
+              <div><span>O₃</span><strong>{formatNumber(selectedDistrict?.ozone_ug_m3)}</strong></div>
+              <div><span>Coverage</span><strong>{collectedDistrictCount}/8</strong></div>
             </div>
           </article>
-        </section>
 
-        <section className="panel pollutant-panel" aria-label="Modeled pollutant signature">
-          <div className="panel-title">
-            <div>
-              <p className="eyebrow">Pollutant context</p>
-              <h2>Pollutant signature — {displayedLocation}</h2>
+          <article className="workspace-panel history-panel" aria-labelledby="history-title">
+            <div className="panel-heading history-heading">
+              <div>
+                <p className="eyebrow">Stored in PostgreSQL</p>
+                <h2 id="history-title">Observation history</h2>
+              </div>
+              <div className="history-actions" aria-label="History range">
+                <button className="range-button active" type="button">Recent</button>
+                <button className="range-button" type="button" disabled>7 days · Soon</button>
+                <button className="range-button" type="button" disabled>30 days · Soon</button>
+              </div>
             </div>
-            <span
-              className={
-                modeledAirQualityMode === "postgresql"
-                  ? "weather-source"
-                  : "weather-source sample"
-              }
-            >
-              {modeledAirQualityMode === "postgresql" ? "CAMS model" : "Sample model"}
-            </span>
-          </div>
-          <p className="model-note">
-            Concentrations in µg/m³ from a regional atmospheric model, useful for
-            comparing pollutant patterns but not a replacement for local sensors.
-          </p>
-          <div className="pollutant-grid">
-            <div><span>PM2.5</span><strong>{formatNumber(displayedPm25)}</strong></div>
-            <div><span>PM10</span><strong>{formatNumber(displayedPm10)}</strong></div>
-            <div><span>NO₂</span><strong>{formatNumber(displayedNo2)}</strong></div>
-            <div><span>SO₂</span><strong>{formatNumber(displayedSo2)}</strong></div>
-            <div><span>CO</span><strong>{formatNumber(displayedCo)}</strong></div>
-            <div><span>O₃</span><strong>{formatNumber(displayedOzone)}</strong></div>
-          </div>
-        </section>
 
-        <section
-          className="panel weather-panel"
-          aria-label="Current weather and wind"
-        >
-          <div className="panel-title">
-            <div>
-              <p className="eyebrow">Weather context</p>
-              <h2>Current wind — {displayedLocation}</h2>
-            </div>
-            <span
-              className={
-                weatherMode === "postgresql"
-                  ? "weather-source"
-                  : "weather-source sample"
-              }
-            >
-              {weatherMode === "postgresql" ? "Open-Meteo" : "Sample weather"}
-            </span>
-          </div>
-          <div className="weather-grid">
-            <div>
-              <span>Wind</span>
-              <strong>
-                {formatNumber(displayedWindSpeed)} km/h {displayedWindDirection === null || displayedWindDirection === undefined ? "–" : windDirectionLabel(displayedWindDirection)}
-              </strong>
-              <small>from {displayedWindDirection ?? "–"}°</small>
-            </div>
-            <div>
-              <span>Gusts</span>
-              <strong>{formatNumber(selectedDistrict?.wind_gusts_kmh)} km/h</strong>
-              <small>10 m above ground</small>
-            </div>
-            <div>
-              <span>Temperature</span>
-              <strong>{formatNumber(displayedTemperature)}°C</strong>
-              <small>{formatNumber(displayedHumidity, 0)}% humidity</small>
-            </div>
-            <div>
-              <span>Precipitation</span>
-              <strong>{formatNumber(selectedDistrict?.precipitation_mm)} mm</strong>
-              <small>Observed {selectedDistrict?.weather_observed_at ? formatTime(selectedDistrict.weather_observed_at) : "–"}</small>
-            </div>
-          </div>
-        </section>
+            <p className="history-note">
+              City-wide IQAir readings are shown separately from the selected
+              district&apos;s CAMS-modelled AQI.
+            </p>
 
-        <section className="panel table-panel">
-          <div className="panel-title">
-            <div>
-              <p className="eyebrow">Stored in PostgreSQL</p>
-              <h2>Observation history</h2>
-            </div>
-            <code>air_quality_observations</code>
-          </div>
-          <div className="table-scroll">
-            <table>
-              <thead>
-                <tr>
-                  <th>Observed</th>
-                  <th>City</th>
-                  <th>US AQI</th>
-                  <th>Main pollutant</th>
-                  <th>Source</th>
-                </tr>
-              </thead>
-              <tbody>
-                {observations.map((row, index) => (
-                  <tr key={`${row.observed_at}-${index}`}>
-                    <td>{formatTime(row.observed_at)}</td>
-                    <td>{row.city}, {row.country}</td>
-                    <td><strong>{row.aqi_us}</strong></td>
-                    <td>{readablePollutant(row.main_pollutant)}</td>
-                    <td>{row.source}</td>
-                  </tr>
+            <div className="history-content">
+              <div className="chart" aria-label="Recent Hanoi AQI bar chart">
+                {chartRows.map((row, index) => (
+                  <div className="chart-column" key={`${row.observed_at}-${index}`}>
+                    <span>{row.aqi_us}</span>
+                    <div
+                      className="chart-bar"
+                      style={{
+                        height: `${Math.max((row.aqi_us / maxChartAqi) * 100, 8)}%`,
+                      }}
+                    />
+                    <small>{formatTime(row.observed_at).split(", ").at(-1)}</small>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+
+              <div className="table-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Observed</th>
+                      <th>US AQI</th>
+                      <th>Pollutant</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {observations.slice(0, 5).map((row, index) => (
+                      <tr key={`${row.observed_at}-history-${index}`}>
+                        <td>{formatTime(row.observed_at)}</td>
+                        <td><strong>{row.aqi_us}</strong></td>
+                        <td>{readablePollutant(row.main_pollutant)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="history-footer">
+              <code>air_quality_observations</code>
+              <span>{observations.length} records loaded</span>
+            </div>
+          </article>
         </section>
 
-        <footer>
-          <span>AirTrace learning project</span>
-          <span>IQAir + Open-Meteo → PostgreSQL → Python API → this dashboard</span>
-        </footer>
+        <aside className="workspace-panel chat-panel" aria-labelledby="chat-title">
+          <div className="panel-heading">
+            <div>
+              <p className="eyebrow">AirTrace assistant</p>
+              <h2 id="chat-title">Ask about the air</h2>
+            </div>
+            <span className="draft-badge">Draft</span>
+          </div>
+
+          <div className="chat-status">
+            <span className="chat-status-icon">AI</span>
+            <div>
+              <strong>Chat is being built</strong>
+              <small>The AI service is not connected yet.</small>
+            </div>
+          </div>
+
+          <div className="chat-thread" aria-label="Draft chatbot conversation">
+            <div className="chat-message assistant-message">
+              <span>AirTrace · Preview</span>
+              <p>
+                Once connected, I&apos;ll use the selected district, weather, and
+                historical readings to explain current conditions.
+              </p>
+            </div>
+            <div className="chat-message user-message">
+              <span>Example question</span>
+              <p>Summarize today&apos;s air quality in {displayedLocation}.</p>
+            </div>
+            <div className="chat-message assistant-message muted-message">
+              <span>Draft response</span>
+              <p>
+                {typeof displayedAqi === "number"
+                  ? `${displayedLocation} is currently ${aqiDescription(displayedAqi).toLowerCase()} at US AQI ${displayedAqi}.`
+                  : "A summary will appear here when district data is available."}
+              </p>
+            </div>
+          </div>
+
+          <div className="suggested-prompts">
+            <span>Suggested prompts · Coming soon</span>
+            <button type="button" disabled>Why is AQI elevated?</button>
+            <button type="button" disabled>Which district has cleaner air?</button>
+            <button type="button" disabled>Summarize the last 24 hours</button>
+          </div>
+
+          <div className="chat-composer">
+            <label htmlFor="chat-input">Ask AirTrace</label>
+            <div>
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Chat coming soon"
+                disabled
+              />
+              <button type="button" disabled aria-label="Send message">→</button>
+            </div>
+            <small>Draft interface · messages cannot be sent yet</small>
+          </div>
+        </aside>
       </div>
     </main>
   );
