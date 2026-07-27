@@ -132,6 +132,41 @@ def get_recent_modeled_air_quality_observations(
     return [dict(row) for row in rows]
 
 
+def get_recent_traffic_observations(limit: int = 20) -> list[dict[str, Any]]:
+    safe_limit = min(max(limit, 1), 100)
+
+    query = """
+        SELECT
+            source,
+            district_name,
+            road_name,
+            collected_at,
+            observed_at,
+            longitude,
+            latitude,
+            current_speed_kmh,
+            free_flow_speed_kmh,
+            congestion_percent,
+            current_travel_time_seconds,
+            free_flow_travel_time_seconds,
+            confidence,
+            road_closure
+        FROM traffic_observations
+        ORDER BY observed_at DESC
+        LIMIT %s
+    """
+
+    with psycopg.connect(
+        get_database_url(),
+        row_factory=dict_row,
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, [safe_limit])
+            rows = cursor.fetchall()
+
+    return [dict(row) for row in rows]
+
+
 def save_iqair_observation(result: dict[str, Any]) -> bool:
     data = result["data"]
     pollution = data["current"]["pollution"]
@@ -220,6 +255,18 @@ def get_district_statuses() -> list[dict[str, Any]]:
             FROM modeled_air_quality_observations
             WHERE district_name IS NOT NULL
             ORDER BY district_name, observed_at DESC
+        ),
+        latest_traffic AS (
+            SELECT DISTINCT ON (district_name)
+                district_name,
+                observed_at AS traffic_observed_at,
+                road_name AS traffic_road_name,
+                current_speed_kmh AS traffic_current_speed_kmh,
+                free_flow_speed_kmh AS traffic_free_flow_speed_kmh,
+                confidence AS traffic_confidence,
+                road_closure AS traffic_road_closure
+            FROM traffic_observations
+            ORDER BY district_name, observed_at DESC
         )
         SELECT
             COALESCE(weather.district_name, air_quality.district_name) AS district_name,
@@ -237,10 +284,18 @@ def get_district_statuses() -> list[dict[str, Any]]:
             air_quality.nitrogen_dioxide_ug_m3,
             air_quality.sulphur_dioxide_ug_m3,
             air_quality.carbon_monoxide_ug_m3,
-            air_quality.ozone_ug_m3
+            air_quality.ozone_ug_m3,
+            traffic.traffic_observed_at,
+            traffic.traffic_road_name,
+            traffic.traffic_current_speed_kmh,
+            traffic.traffic_free_flow_speed_kmh,
+            traffic.traffic_confidence,
+            traffic.traffic_road_closure
         FROM latest_weather AS weather
         FULL OUTER JOIN latest_air_quality AS air_quality
             ON weather.district_name = air_quality.district_name
+        FULL OUTER JOIN latest_traffic AS traffic
+            ON COALESCE(weather.district_name, air_quality.district_name) = traffic.district_name
         ORDER BY district_name
     """
 
@@ -434,6 +489,94 @@ def save_open_meteo_air_quality_observation(
         current["sulphur_dioxide"],
         current["carbon_monoxide"],
         current["ozone"],
+        json.dumps(result),
+    ]
+
+    with psycopg.connect(get_database_url()) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, values)
+            inserted_row = cursor.fetchone()
+
+    return inserted_row is not None
+
+
+def save_tomtom_traffic_observation(
+    result: dict[str, Any],
+    district_name: str,
+    road_name: str,
+    latitude: float,
+    longitude: float,
+    observed_at: str,
+) -> bool:
+    flow = result["flowSegmentData"]
+    free_flow_speed = flow["freeFlowSpeed"]
+    current_speed = flow["currentSpeed"]
+    congestion_percent = (
+        round(max(0, min(100, (1 - current_speed / free_flow_speed) * 100)))
+        if free_flow_speed
+        else 0
+    )
+    external_id = (
+        f"tomtom:{district_name.lower().replace(' ', '-')}:"
+        f"{road_name.lower().replace(' ', '-')}:{observed_at}"
+    )
+    query = """
+        INSERT INTO traffic_observations (
+            external_id,
+            district_name,
+            road_name,
+            congestion_percent,
+            data_class,
+            notes,
+            source,
+            collected_at,
+            observed_at,
+            longitude,
+            latitude,
+            current_speed_kmh,
+            free_flow_speed_kmh,
+            current_travel_time_seconds,
+            free_flow_travel_time_seconds,
+            confidence,
+            road_closure,
+            raw_response
+        )
+        VALUES (
+            %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s::jsonb
+        )
+        ON CONFLICT (external_id)
+        DO UPDATE SET
+            collected_at = EXCLUDED.collected_at,
+            congestion_percent = EXCLUDED.congestion_percent,
+            notes = EXCLUDED.notes,
+            source = EXCLUDED.source,
+            current_speed_kmh = EXCLUDED.current_speed_kmh,
+            free_flow_speed_kmh = EXCLUDED.free_flow_speed_kmh,
+            current_travel_time_seconds = EXCLUDED.current_travel_time_seconds,
+            free_flow_travel_time_seconds = EXCLUDED.free_flow_travel_time_seconds,
+            confidence = EXCLUDED.confidence,
+            road_closure = EXCLUDED.road_closure,
+            raw_response = EXCLUDED.raw_response
+        RETURNING traffic_observation_id
+    """
+    values = [
+        external_id,
+        district_name,
+        road_name,
+        congestion_percent,
+        "verified",
+        "Real-time TomTom Traffic Flow at a representative major-road point.",
+        "TomTom Traffic Flow",
+        observed_at,
+        longitude,
+        latitude,
+        current_speed,
+        free_flow_speed,
+        flow["currentTravelTime"],
+        flow["freeFlowTravelTime"],
+        flow.get("confidence"),
+        flow.get("roadClosure", False),
         json.dumps(result),
     ]
 

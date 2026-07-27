@@ -41,6 +41,23 @@ export type ModeledAirQualityObservation = {
   ozone_ug_m3: number;
 };
 
+export type TrafficObservation = {
+  source: string;
+  district_name: string;
+  road_name: string;
+  collected_at: string;
+  observed_at: string;
+  longitude: number;
+  latitude: number;
+  current_speed_kmh: number;
+  free_flow_speed_kmh: number;
+  congestion_percent: number;
+  current_travel_time_seconds: number;
+  free_flow_travel_time_seconds: number;
+  confidence: number | null;
+  road_closure: boolean;
+};
+
 export type DistrictStatus = {
   district_name: string;
   weather_observed_at: string | null;
@@ -58,6 +75,12 @@ export type DistrictStatus = {
   sulphur_dioxide_ug_m3?: number | null;
   carbon_monoxide_ug_m3?: number | null;
   ozone_ug_m3: number | null;
+  traffic_observed_at?: string | null;
+  traffic_road_name?: string | null;
+  traffic_current_speed_kmh?: number | null;
+  traffic_free_flow_speed_kmh?: number | null;
+  traffic_confidence?: number | null;
+  traffic_road_closure?: boolean | null;
 };
 
 // These rows keep the interface visible before the Python API is running.

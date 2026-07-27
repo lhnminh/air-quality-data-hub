@@ -208,6 +208,48 @@ def test_get_recent_modeled_air_quality_observations(fake_cursor):
     assert observations[0]["pm2_5_ug_m3"] == 32.5
 
 
+def test_save_tomtom_traffic_observation(fake_cursor):
+    fake_cursor.fetchone.return_value = (1,)
+    traffic_result = {
+        "flowSegmentData": {
+            "currentSpeed": 18,
+            "freeFlowSpeed": 42,
+            "currentTravelTime": 91,
+            "freeFlowTravelTime": 39,
+            "confidence": 0.87,
+            "roadClosure": False,
+        }
+    }
+
+    inserted = database.save_tomtom_traffic_observation(
+        traffic_result,
+        "Hoan Kiem",
+        "Tran Quang Khai",
+        latitude=21.0273,
+        longitude=105.8586,
+        observed_at="2026-07-27T12:00:00+00:00",
+    )
+
+    assert inserted is True
+    query, values = fake_cursor.execute.call_args.args
+    assert "INSERT INTO traffic_observations" in query
+    assert values[0].startswith("tomtom:hoan-kiem:tran-quang-khai:")
+    assert values[1] == "Hoan Kiem"
+    assert values[6] == "TomTom Traffic Flow"
+    assert values[10] == 18
+    assert values[11] == 42
+
+
+def test_get_recent_traffic_observations(fake_cursor):
+    fake_cursor.fetchall.return_value = [
+        {"source": "TomTom Traffic Flow", "district_name": "Hoan Kiem"}
+    ]
+
+    observations = database.get_recent_traffic_observations(limit=10)
+
+    assert observations[0]["district_name"] == "Hoan Kiem"
+
+
 def test_get_district_statuses(fake_cursor):
     fake_cursor.fetchall.return_value = [
         {

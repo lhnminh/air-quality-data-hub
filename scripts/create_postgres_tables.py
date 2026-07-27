@@ -97,6 +97,53 @@ ON modeled_air_quality_observations (observed_at DESC);
 """
 
 
+create_traffic_table_sql = """
+CREATE TABLE IF NOT EXISTS traffic_observations (
+    traffic_observation_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    external_id TEXT NOT NULL UNIQUE,
+    district_name TEXT NOT NULL,
+    road_name TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL,
+    congestion_percent INTEGER NOT NULL CHECK (congestion_percent BETWEEN 0 AND 100),
+    vehicle_count_estimate INTEGER,
+    data_class TEXT NOT NULL CHECK (data_class IN ('verified', 'synthetic_demo')),
+    notes TEXT NOT NULL,
+    source TEXT,
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    longitude DOUBLE PRECISION NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    current_speed_kmh DOUBLE PRECISION NOT NULL,
+    free_flow_speed_kmh DOUBLE PRECISION NOT NULL,
+    current_travel_time_seconds INTEGER NOT NULL,
+    free_flow_travel_time_seconds INTEGER NOT NULL,
+    confidence DOUBLE PRECISION,
+    road_closure BOOLEAN NOT NULL DEFAULT FALSE,
+    raw_response JSONB
+);
+"""
+
+
+create_traffic_index_sql = """
+CREATE INDEX IF NOT EXISTS traffic_observations_district_time_index
+ON traffic_observations (district_name, observed_at DESC);
+"""
+
+
+migrate_traffic_columns_sql = """
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS source TEXT;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS longitude DOUBLE PRECISION;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS latitude DOUBLE PRECISION;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS current_speed_kmh DOUBLE PRECISION;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS free_flow_speed_kmh DOUBLE PRECISION;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS current_travel_time_seconds INTEGER;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS free_flow_travel_time_seconds INTEGER;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS road_closure BOOLEAN;
+ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS raw_response JSONB;
+"""
+
+
 migrate_district_columns_sql = """
 ALTER TABLE air_quality_observations ADD COLUMN IF NOT EXISTS district_name TEXT;
 ALTER TABLE weather_observations ADD COLUMN IF NOT EXISTS district_name TEXT;
@@ -112,6 +159,9 @@ with psycopg.connect(database_url) as connection:
         cursor.execute(create_weather_index_sql)
         cursor.execute(create_modeled_air_quality_table_sql)
         cursor.execute(create_modeled_air_quality_index_sql)
+        cursor.execute(create_traffic_table_sql)
+        cursor.execute(migrate_traffic_columns_sql)
+        cursor.execute(create_traffic_index_sql)
         cursor.execute(migrate_district_columns_sql)
 
 
@@ -119,3 +169,4 @@ print("PostgreSQL tables created successfully")
 print("Created table: air_quality_observations")
 print("Created table: weather_observations")
 print("Created table: modeled_air_quality_observations")
+print("Created table: traffic_observations")

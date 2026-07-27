@@ -8,6 +8,7 @@ import {
   type AirObservation,
   type DistrictStatus,
   type ModeledAirQualityObservation,
+  type TrafficObservation,
   type WeatherObservation,
 } from "./mock-data";
 
@@ -75,6 +76,20 @@ async function requestDistrictStatuses() {
   }
 }
 
+async function requestTraffic() {
+  try {
+    const response = await fetch(`${apiUrl}/api/traffic?limit=8`);
+    if (!response.ok) return null;
+
+    const result = (await response.json()) as {
+      observations: TrafficObservation[];
+    };
+    return result.observations;
+  } catch {
+    return null;
+  }
+}
+
 function readablePollutant(code: string) {
   const pollutantNames: Record<string, string> = {
     p1: "PM10",
@@ -118,6 +133,14 @@ function formatNumber(value: number | null | undefined, digits = 1) {
   return typeof value === "number" ? value.toFixed(digits) : "–";
 }
 
+function congestionLabel(currentSpeed?: number | null, freeFlowSpeed?: number | null) {
+  if (!currentSpeed || !freeFlowSpeed) return "Awaiting traffic data";
+  const ratio = currentSpeed / freeFlowSpeed;
+  if (ratio >= 0.8) return "Free-flowing";
+  if (ratio >= 0.5) return "Moderate congestion";
+  return "Heavy congestion";
+}
+
 export default function Home() {
   const [observations, setObservations] =
     useState<AirObservation[]>([]);
@@ -128,15 +151,17 @@ export default function Home() {
   const [modeledAirQualityMode, setModeledAirQualityMode] =
     useState<DataMode>("loading");
   const [districtMode, setDistrictMode] = useState<DataMode>("loading");
+  const [trafficMode, setTrafficMode] = useState<DataMode>("loading");
   const [selectedDistrictName, setSelectedDistrictName] = useState("Hoan Kiem");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   const loadObservations = useCallback(async () => {
-    const [result, weatherResult, modeledAirQualityResult, districtResult] = await Promise.all([
+    const [result, weatherResult, modeledAirQualityResult, districtResult, trafficResult] = await Promise.all([
       requestObservations(),
       requestWeather(),
       requestModeledAirQuality(),
       requestDistrictStatuses(),
+      requestTraffic(),
     ]);
     if (!result?.length) {
       setObservations(mockObservations);
@@ -169,6 +194,7 @@ export default function Home() {
         );
       }
     }
+    setTrafficMode(trafficResult?.length ? "postgresql" : "demo");
     setIsRefreshing(false);
   }, []);
 
@@ -180,11 +206,13 @@ export default function Home() {
       requestWeather(),
       requestModeledAirQuality(),
       requestDistrictStatuses(),
+      requestTraffic(),
     ]).then(([
       result,
       weatherResult,
       modeledAirQualityResult,
       districtResult,
+      trafficResult,
     ]) => {
       if (cancelled) return;
 
@@ -195,6 +223,7 @@ export default function Home() {
         setObservations(result);
         setDataMode("postgresql");
       }
+      setTrafficMode(trafficResult?.length ? "postgresql" : "demo");
       if (!weatherResult?.length) {
         setWeatherMode("demo");
       } else {
@@ -242,6 +271,10 @@ export default function Home() {
   const displayedSo2 = selectedDistrict?.sulphur_dioxide_ug_m3;
   const displayedCo = selectedDistrict?.carbon_monoxide_ug_m3;
   const displayedOzone = selectedDistrict?.ozone_ug_m3;
+  const displayedTrafficRoad = selectedDistrict?.traffic_road_name;
+  const displayedTrafficSpeed = selectedDistrict?.traffic_current_speed_kmh;
+  const displayedTrafficFreeFlowSpeed = selectedDistrict?.traffic_free_flow_speed_kmh;
+  const displayedTrafficObservedAt = selectedDistrict?.traffic_observed_at;
   const hasDistrictData = displayedAqi !== null && displayedAqi !== undefined;
   const collectedDistrictCount = districtStatuses.filter(
     (district) => district.us_aqi !== null && district.us_aqi !== undefined,
@@ -413,14 +446,16 @@ export default function Home() {
             <div className="panel-title">
               <div>
                 <p className="eyebrow">Source investigation</p>
-                <h2>Weather context available</h2>
+                <h2>Traffic context — {displayedLocation}</h2>
               </div>
-              <span className="not-ready">Not active</span>
+              <span className={trafficMode === "postgresql" ? "weather-source" : "not-ready"}>
+                {trafficMode === "postgresql" ? "TomTom Flow" : "Awaiting data"}
+              </span>
             </div>
             <p className="investigation-copy">
-              Wind can show whether a possible source sits upwind of Hanoi. This
-              is useful context, but one city-level air reading is still not enough
-              to attribute a pollution event.
+              {displayedTrafficRoad
+                ? `${congestionLabel(displayedTrafficSpeed, displayedTrafficFreeFlowSpeed)} near ${displayedTrafficRoad}. Road speed is investigation context, not proof that traffic caused an air-quality event.`
+                : "Traffic flow will show congestion near one representative major road in each district. It is context, not proof that traffic caused an air-quality event."}
             </p>
             <div className="evidence-list">
               <div><span>Air quality</span><strong className="connected">Connected</strong></div>
@@ -436,9 +471,48 @@ export default function Home() {
                   {modeledAirQualityMode === "postgresql" ? "Connected" : "Sample"}
                 </strong>
               </div>
-              <div><span>Traffic and fires</span><strong>Planned</strong></div>
+              <div>
+                <span>Traffic flow</span>
+                <strong className={trafficMode === "postgresql" ? "connected" : undefined}>
+                  {trafficMode === "postgresql" ? "Connected" : "Awaiting data"}
+                </strong>
+              </div>
             </div>
           </article>
+        </section>
+
+        <section className="panel weather-panel" aria-label="Current traffic context">
+          <div className="panel-title">
+            <div>
+              <p className="eyebrow">Road context</p>
+              <h2>Traffic near {displayedLocation}</h2>
+            </div>
+            <span className={trafficMode === "postgresql" ? "weather-source" : "weather-source sample"}>
+              {trafficMode === "postgresql" ? "TomTom Traffic Flow" : "Awaiting TomTom data"}
+            </span>
+          </div>
+          <div className="weather-grid">
+            <div>
+              <span>Monitored road</span>
+              <strong>{displayedTrafficRoad ?? "–"}</strong>
+              <small>Representative major-road point</small>
+            </div>
+            <div>
+              <span>Traffic state</span>
+              <strong>{congestionLabel(displayedTrafficSpeed, displayedTrafficFreeFlowSpeed)}</strong>
+              <small>Speed compared with free-flow</small>
+            </div>
+            <div>
+              <span>Current speed</span>
+              <strong>{formatNumber(displayedTrafficSpeed)} km/h</strong>
+              <small>TomTom observed flow</small>
+            </div>
+            <div>
+              <span>Free-flow speed</span>
+              <strong>{formatNumber(displayedTrafficFreeFlowSpeed)} km/h</strong>
+              <small>{displayedTrafficObservedAt ? `Observed ${formatTime(displayedTrafficObservedAt)}` : "Awaiting collection"}</small>
+            </div>
+          </div>
         </section>
 
         <section className="panel pollutant-panel" aria-label="Modeled pollutant signature">
