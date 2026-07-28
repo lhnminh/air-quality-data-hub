@@ -1,16 +1,20 @@
 import os
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 from database import (
     check_database_connection,
     get_district_statuses,
+    get_district_investigation_context,
     get_recent_modeled_air_quality_observations,
     get_recent_observations,
     get_recent_traffic_observations,
     get_recent_weather_observations,
 )
+from districts import DISTRICTS
+from agent import run_district_agent
 
 app = FastAPI(title="AirTrace API")
 
@@ -20,9 +24,14 @@ frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[frontend_url],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+
+
+class InvestigationRequest(BaseModel):
+    district_name: str
+    prompt: str = Field(min_length=1, max_length=500)
 
 
 @app.get("/api/health")
@@ -84,3 +93,24 @@ def recent_traffic_observations(
 def district_statuses() -> dict:
     districts = get_district_statuses()
     return {"count": len(districts), "districts": districts}
+
+
+@app.post("/api/investigate")
+def investigate_district(request: InvestigationRequest) -> dict:
+    district_names = {district["name"] for district in DISTRICTS}
+    if request.district_name not in district_names:
+        raise HTTPException(status_code=404, detail="Unknown Hanoi pilot district")
+
+    context = get_district_investigation_context(request.district_name)
+    if not context:
+        raise HTTPException(
+            status_code=404,
+            detail="No investigation data is available for this district yet",
+        )
+
+    agent_result = run_district_agent(request.district_name, request.prompt)
+    return {
+        "district_name": request.district_name,
+        "prompt": request.prompt,
+        **agent_result,
+    }

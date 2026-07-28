@@ -167,6 +167,166 @@ def get_recent_traffic_observations(limit: int = 20) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def get_district_investigation_context(district_name: str) -> dict[str, Any] | None:
+    """Return the latest bounded evidence package for one selected district."""
+    query = """
+        WITH district_air AS (
+            SELECT
+                observed_at AS district_air_observed_at,
+                us_aqi AS district_us_aqi,
+                pm2_5_ug_m3 AS district_pm2_5_ug_m3,
+                pm10_ug_m3 AS district_pm10_ug_m3,
+                nitrogen_dioxide_ug_m3 AS district_no2_ug_m3,
+                sulphur_dioxide_ug_m3 AS district_so2_ug_m3,
+                carbon_monoxide_ug_m3 AS district_co_ug_m3,
+                ozone_ug_m3 AS district_ozone_ug_m3
+            FROM modeled_air_quality_observations
+            WHERE district_name = %s
+            ORDER BY observed_at DESC
+            LIMIT 1
+        ),
+        district_weather AS (
+            SELECT
+                observed_at AS weather_observed_at,
+                wind_speed_kmh,
+                wind_direction_degrees,
+                wind_gusts_kmh,
+                temperature_c,
+                relative_humidity_percent,
+                precipitation_mm
+            FROM weather_observations
+            WHERE district_name = %s
+            ORDER BY observed_at DESC
+            LIMIT 1
+        ),
+        district_traffic AS (
+            SELECT
+                observed_at AS traffic_observed_at,
+                road_name AS traffic_road_name,
+                current_speed_kmh AS traffic_current_speed_kmh,
+                free_flow_speed_kmh AS traffic_free_flow_speed_kmh,
+                congestion_percent AS traffic_congestion_percent,
+                confidence AS traffic_confidence,
+                road_closure AS traffic_road_closure
+            FROM traffic_observations
+            WHERE district_name = %s
+            ORDER BY observed_at DESC
+            LIMIT 1
+        ),
+        city_air AS (
+            SELECT
+                observed_at AS city_air_observed_at,
+                aqi_us AS city_aqi_us,
+                main_pollutant AS city_main_pollutant
+            FROM air_quality_observations
+            ORDER BY observed_at DESC
+            LIMIT 1
+        )
+        SELECT
+            %s AS district_name,
+            district_air.*,
+            district_weather.*,
+            district_traffic.*,
+            city_air.*
+        FROM district_air
+        FULL OUTER JOIN district_weather ON TRUE
+        FULL OUTER JOIN district_traffic ON TRUE
+        FULL OUTER JOIN city_air ON TRUE
+    """
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, [district_name, district_name, district_name, district_name])
+            row = cursor.fetchone()
+
+    return dict(row) if row else None
+
+
+def get_district_history(district_name: str, limit: int = 24) -> list[dict[str, Any]]:
+    """Return a bounded district CAMS history for an investigation tool."""
+    safe_limit = min(max(limit, 1), 48)
+    query = """
+        SELECT
+            observed_at,
+            us_aqi,
+            pm2_5_ug_m3,
+            nitrogen_dioxide_ug_m3,
+            ozone_ug_m3
+        FROM modeled_air_quality_observations
+        WHERE district_name = %s
+        ORDER BY observed_at DESC
+        LIMIT %s
+    """
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, [district_name, safe_limit])
+            rows = cursor.fetchall()
+
+    return [dict(row) for row in rows]
+
+
+def save_investigation(
+    district_name: str,
+    prompt: str,
+    agent_model: str,
+    report: dict[str, Any],
+    datahub_context: dict[str, Any],
+    tool_trace: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Persist an agent result as an auditable, review-only investigation."""
+    investigation_query = """
+        INSERT INTO investigations (
+            district_name, prompt, status, agent_model, report, datahub_context, tool_trace
+        ) VALUES (%s, %s, 'awaiting_human_review', %s, %s::jsonb, %s::jsonb, %s::jsonb)
+        RETURNING investigation_id, status, created_at
+    """
+    action_query = """
+        INSERT INTO investigation_actions (
+            investigation_id, action_type, status, description
+        ) VALUES (%s, 'human_review', 'awaiting_human_review', %s)
+        RETURNING action_type, status, description
+    """
+    evidence_query = """
+        INSERT INTO investigation_evidence (
+            investigation_id, tool_name, tool_status, evidence
+        ) VALUES (%s, %s, %s, %s::jsonb)
+    """
+    action_description = (
+        f"Review the AirTrace evidence package for {district_name} before any public alert "
+        "or operational response."
+    )
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                investigation_query,
+                [
+                    district_name,
+                    prompt,
+                    agent_model,
+                    json.dumps(report, default=str),
+                    json.dumps(datahub_context, default=str),
+                    json.dumps(tool_trace, default=str),
+                ],
+            )
+            investigation = dict(cursor.fetchone())
+            for tool in tool_trace:
+                cursor.execute(
+                    evidence_query,
+                    [
+                        investigation["investigation_id"],
+                        tool["tool_name"],
+                        tool["status"],
+                        json.dumps(tool.get("evidence", {}), default=str),
+                    ],
+                )
+            cursor.execute(
+                action_query,
+                [investigation["investigation_id"], action_description],
+            )
+            action = dict(cursor.fetchone())
+
+    return {**investigation, "action": action}
+
+
 def save_iqair_observation(result: dict[str, Any]) -> bool:
     data = result["data"]
     pollution = data["current"]["pollution"]

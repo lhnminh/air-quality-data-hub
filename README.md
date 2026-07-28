@@ -198,6 +198,22 @@ data at one representative major-road point in each pilot district. Add a
 `TOMTOM_API_KEY` to `.env` first. Traffic speed is displayed as investigation
 context only; it does not establish that traffic caused a pollution event.
 
+Clicking a district prepares an **Inspect [district] air quality** prompt in the
+dashboard. When the user sends it, Gemini acts as a bounded investigation agent:
+it checks four live DataHub source contracts (CAMS, IQAir, weather, and TomTom)
+against their catalogued PostgreSQL schemas, retrieves the latest district evidence
+and history from Neon, runs transparent source-hypothesis scoring, and asks Gemini
+to choose the most relevant source-controlled fact cards. Gemini cannot invent a
+number or relabel a source. The backend then saves the report, tool evidence, and a
+review-only action to Neon. Set `GEMINI_API_KEY`,
+`GEMINI_MODEL=gemini-3.1-flash-lite`, `DATAHUB_GMS_URL`, and
+`DATAHUB_GMS_TOKEN` in `.env`. Set `DATAHUB_MCP_WRITE_ENABLED=true` during the
+local demo to save a concise investigation document to DataHub as well through its
+REST API. The DataHub user interface is `http://localhost:9002`; port `8080` is the
+behind-the-scenes GMS API, not the browser UI. Keys stay on the backend and are
+never sent to the browser. CAMS and traffic are evidence context, not proof of a
+pollution source.
+
 ## Data required
 
 | Dataset | Minimum fields | Purpose |

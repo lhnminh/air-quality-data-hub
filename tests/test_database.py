@@ -250,6 +250,24 @@ def test_get_recent_traffic_observations(fake_cursor):
     assert observations[0]["district_name"] == "Hoan Kiem"
 
 
+def test_get_district_investigation_context(fake_cursor):
+    fake_cursor.fetchone.return_value = {
+        "district_name": "Hoan Kiem",
+        "district_us_aqi": 97,
+        "weather_observed_at": "2026-07-27T12:00:00Z",
+        "traffic_road_name": "Tran Quang Khai",
+    }
+
+    context = database.get_district_investigation_context("Hoan Kiem")
+
+    query, values = fake_cursor.execute.call_args.args
+    assert "district_air" in query
+    assert "district_traffic" in query
+    assert values == ["Hoan Kiem", "Hoan Kiem", "Hoan Kiem", "Hoan Kiem"]
+    assert context is not None
+    assert context["district_us_aqi"] == 97
+
+
 def test_get_district_statuses(fake_cursor):
     fake_cursor.fetchall.return_value = [
         {

@@ -151,6 +151,45 @@ ALTER TABLE modeled_air_quality_observations ADD COLUMN IF NOT EXISTS district_n
 """
 
 
+create_investigations_table_sql = """
+CREATE TABLE IF NOT EXISTS investigations (
+    investigation_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    district_name TEXT NOT NULL,
+    prompt TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('awaiting_human_review', 'approved', 'rejected')),
+    agent_model TEXT NOT NULL,
+    report JSONB NOT NULL,
+    datahub_context JSONB NOT NULL DEFAULT '{}'::jsonb,
+    tool_trace JSONB NOT NULL DEFAULT '[]'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+
+create_investigation_evidence_table_sql = """
+CREATE TABLE IF NOT EXISTS investigation_evidence (
+    investigation_evidence_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    investigation_id BIGINT NOT NULL REFERENCES investigations(investigation_id) ON DELETE CASCADE,
+    tool_name TEXT NOT NULL,
+    tool_status TEXT NOT NULL,
+    evidence JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+
+create_investigation_actions_table_sql = """
+CREATE TABLE IF NOT EXISTS investigation_actions (
+    investigation_action_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    investigation_id BIGINT NOT NULL REFERENCES investigations(investigation_id) ON DELETE CASCADE,
+    action_type TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('awaiting_human_review', 'approved', 'rejected')),
+    description TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+
 with psycopg.connect(database_url) as connection:
     with connection.cursor() as cursor:
         cursor.execute(create_table_sql)
@@ -163,6 +202,9 @@ with psycopg.connect(database_url) as connection:
         cursor.execute(migrate_traffic_columns_sql)
         cursor.execute(create_traffic_index_sql)
         cursor.execute(migrate_district_columns_sql)
+        cursor.execute(create_investigations_table_sql)
+        cursor.execute(create_investigation_evidence_table_sql)
+        cursor.execute(create_investigation_actions_table_sql)
 
 
 print("PostgreSQL tables created successfully")
@@ -170,3 +212,6 @@ print("Created table: air_quality_observations")
 print("Created table: weather_observations")
 print("Created table: modeled_air_quality_observations")
 print("Created table: traffic_observations")
+print("Created table: investigations")
+print("Created table: investigation_evidence")
+print("Created table: investigation_actions")
