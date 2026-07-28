@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import sys
 import uuid
 from typing import Any
 
@@ -48,6 +49,14 @@ def _not_configured() -> dict[str, Any]:
     }
 
 
+def _mcp_server_command() -> list[str]:
+    """Build a launch command that does not depend on a console script in PATH."""
+    command_override = os.environ.get("DATAHUB_MCP_COMMAND")
+    if command_override:
+        return [command_override]
+    return [sys.executable, "-m", "mcp_server_datahub"]
+
+
 def _request(process: subprocess.Popen[str], message: dict[str, Any]) -> dict[str, Any]:
     assert process.stdin is not None
     assert process.stdout is not None
@@ -72,7 +81,6 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if not gms_url or not gms_token:
         return _not_configured()
 
-    command = os.environ.get("DATAHUB_MCP_COMMAND", "mcp-server-datahub")
     environment = {
         **os.environ,
         "DATAHUB_GMS_URL": gms_url,
@@ -80,7 +88,7 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     }
     try:
         with subprocess.Popen(
-            [command],
+            _mcp_server_command(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -139,11 +147,10 @@ def list_available_tools() -> dict[str, Any]:
     gms_token = os.environ.get("DATAHUB_GMS_TOKEN")
     if not gms_url or not gms_token:
         return _not_configured()
-    command = os.environ.get("DATAHUB_MCP_COMMAND", "mcp-server-datahub")
     environment = {**os.environ, "DATAHUB_GMS_URL": gms_url, "DATAHUB_GMS_TOKEN": gms_token}
     try:
         with subprocess.Popen(
-            [command],
+            _mcp_server_command(),
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
