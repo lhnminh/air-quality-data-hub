@@ -208,6 +208,25 @@ def test_get_recent_modeled_air_quality_observations(fake_cursor):
     assert observations[0]["pm2_5_ug_m3"] == 32.5
 
 
+def test_get_city_air_quality_history(fake_cursor):
+    fake_cursor.fetchall.return_value = [
+        {
+            "source": "Open-Meteo CAMS global",
+            "observed_on": "2026-02-18",
+            "city": "Hanoi",
+            "us_aqi": 84.5,
+        }
+    ]
+
+    observations = database.get_city_air_quality_history(" Hanoi ", days=30)
+
+    query, values = fake_cursor.execute.call_args.args
+    assert "FROM city_air_quality_history" in query
+    assert values == ["Hanoi", 30]
+    assert observations[0]["city"] == "Hanoi"
+    assert observations[0]["us_aqi"] == 84.5
+
+
 def test_save_tomtom_traffic_observation(fake_cursor):
     fake_cursor.fetchone.return_value = (1,)
     traffic_result = {

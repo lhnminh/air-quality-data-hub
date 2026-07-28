@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from database import (
     check_database_connection,
+    get_city_air_quality_history,
     get_district_statuses,
     get_district_investigation_context,
     get_recent_modeled_air_quality_observations,
@@ -73,6 +74,20 @@ def recent_modeled_air_quality_observations(
 ) -> dict:
     observations = get_recent_modeled_air_quality_observations(limit=limit)
     return {
+        "count": len(observations),
+        "observations": observations,
+    }
+
+
+@app.get("/api/city-air-quality-history")
+def city_air_quality_history(
+    city: str = Query(default="Hanoi", min_length=1, max_length=100),
+    days: int = Query(default=30, ge=1, le=3660),
+) -> dict:
+    observations = get_city_air_quality_history(city=city, days=days)
+    return {
+        "city": city,
+        "days": days,
         "count": len(observations),
         "observations": observations,
     }

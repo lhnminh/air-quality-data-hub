@@ -514,6 +514,23 @@ h2 {
   margin: 10px 0 2px;
 }
 
+.history-empty {
+  align-items: center;
+  background: #f4f6f1;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  color: var(--muted);
+  display: flex;
+  flex: 1;
+  font-size: 11px;
+  justify-content: center;
+  line-height: 1.5;
+  margin-top: 12px;
+  min-height: 150px;
+  padding: 20px;
+  text-align: center;
+}
+
 .history-content {
   display: grid;
   gap: 16px;
@@ -528,6 +545,52 @@ h2 {
   height: clamp(135px, 18vh, 175px);
   padding: 12px 2px 22px;
   position: relative;
+}
+
+.history-line-chart {
+  height: clamp(150px, 19vh, 185px);
+  padding: 4px 0 0;
+  width: 100%;
+}
+
+.history-line-svg {
+  height: 100%;
+  overflow: visible;
+  width: 100%;
+}
+
+.history-line-grid line {
+  stroke: var(--line);
+  stroke-dasharray: 3 4;
+  stroke-width: 1;
+}
+
+.history-line-grid text,
+.history-line-date {
+  fill: var(--muted);
+  font-size: 9px;
+}
+
+.history-line-grid text {
+  text-anchor: end;
+}
+
+.history-line-area {
+  fill: rgba(200, 232, 96, 0.2);
+}
+
+.history-line-path {
+  fill: none;
+  stroke: var(--green);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.history-line-point {
+  fill: var(--lime);
+  stroke: var(--green);
+  stroke-width: 1.5;
 }
 
 .chart::after {

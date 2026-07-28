@@ -198,6 +198,35 @@ data at one representative major-road point in each pilot district. Add a
 `TOMTOM_API_KEY` to `.env` first. Traffic speed is displayed as investigation
 context only; it does not establish that traffic caused a pollution event.
 
+### Import downloaded city air-quality history
+
+The `data/` directory contains a CC0 Hanoi history package derived from the
+Open-Meteo CAMS global model. These are daily model averages, not IQAir or
+physical monitoring-station observations, so they are stored separately in
+`city_air_quality_history`.
+
+Validate the files without changing Neon:
+
+```bash
+uv run python scripts/import_city_air_quality_history.py
+```
+
+After validation succeeds, create or update the Neon tables and explicitly
+apply the idempotent import:
+
+```bash
+uv run python scripts/create_postgres_tables.py
+uv run python scripts/import_city_air_quality_history.py --apply
+```
+
+The importer skips rows with no measurements and updates matching dataset,
+city, date, and aggregation-period records, so rerunning it does not create
+duplicates. The dashboard API can read the latest available daily rows with:
+
+```text
+GET /api/city-air-quality-history?city=Hanoi&days=30
+```
+
 Clicking a district prepares an **Inspect [district] air quality** prompt in the
 dashboard. When the user sends it, Gemini acts as a bounded investigation agent:
 it checks four live DataHub source contracts (CAMS, IQAir, weather, and TomTom)

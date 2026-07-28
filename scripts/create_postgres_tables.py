@@ -97,6 +97,49 @@ ON modeled_air_quality_observations (observed_at DESC);
 """
 
 
+create_city_air_quality_history_table_sql = """
+CREATE TABLE IF NOT EXISTS city_air_quality_history (
+    city_air_quality_history_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source TEXT NOT NULL,
+    source_dataset_id TEXT NOT NULL,
+    license TEXT NOT NULL,
+    data_class TEXT NOT NULL CHECK (data_class IN ('measured', 'modeled')),
+    aggregation_period TEXT NOT NULL CHECK (aggregation_period IN ('hourly', 'daily_mean')),
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    observed_on DATE NOT NULL,
+    city TEXT NOT NULL,
+    country TEXT NOT NULL,
+    country_code TEXT NOT NULL,
+    admin1_code TEXT,
+    admin2_code TEXT,
+    geoname_id BIGINT,
+    population BIGINT,
+    longitude DOUBLE PRECISION NOT NULL,
+    latitude DOUBLE PRECISION NOT NULL,
+    pm2_5_ug_m3 DOUBLE PRECISION,
+    pm10_ug_m3 DOUBLE PRECISION,
+    nitrogen_dioxide_ug_m3 DOUBLE PRECISION,
+    sulphur_dioxide_ug_m3 DOUBLE PRECISION,
+    carbon_monoxide_ug_m3 DOUBLE PRECISION,
+    ozone_ug_m3 DOUBLE PRECISION,
+    us_aqi DOUBLE PRECISION,
+    european_aqi DOUBLE PRECISION,
+    uv_index DOUBLE PRECISION,
+    aerosol_optical_depth DOUBLE PRECISION,
+    dust_ug_m3 DOUBLE PRECISION,
+    raw_response JSONB NOT NULL,
+
+    UNIQUE (source_dataset_id, city, observed_on, aggregation_period)
+);
+"""
+
+
+create_city_air_quality_history_index_sql = """
+CREATE INDEX IF NOT EXISTS city_air_quality_history_city_date_index
+ON city_air_quality_history (city, observed_on DESC);
+"""
+
+
 create_traffic_table_sql = """
 CREATE TABLE IF NOT EXISTS traffic_observations (
     traffic_observation_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -198,6 +241,8 @@ with psycopg.connect(database_url) as connection:
         cursor.execute(create_weather_index_sql)
         cursor.execute(create_modeled_air_quality_table_sql)
         cursor.execute(create_modeled_air_quality_index_sql)
+        cursor.execute(create_city_air_quality_history_table_sql)
+        cursor.execute(create_city_air_quality_history_index_sql)
         cursor.execute(create_traffic_table_sql)
         cursor.execute(migrate_traffic_columns_sql)
         cursor.execute(create_traffic_index_sql)
@@ -211,6 +256,7 @@ print("PostgreSQL tables created successfully")
 print("Created table: air_quality_observations")
 print("Created table: weather_observations")
 print("Created table: modeled_air_quality_observations")
+print("Created table: city_air_quality_history")
 print("Created table: traffic_observations")
 print("Created table: investigations")
 print("Created table: investigation_evidence")
