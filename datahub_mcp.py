@@ -72,7 +72,7 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     if not gms_url or not gms_token:
         return _not_configured()
 
-    command = os.environ.get("DATAHUB_MCP_COMMAND", "uvx")
+    command = os.environ.get("DATAHUB_MCP_COMMAND", "mcp-server-datahub")
     environment = {
         **os.environ,
         "DATAHUB_GMS_URL": gms_url,
@@ -80,7 +80,7 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     }
     try:
         with subprocess.Popen(
-            [command, "mcp-server-datahub@latest"],
+            [command],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -139,11 +139,11 @@ def list_available_tools() -> dict[str, Any]:
     gms_token = os.environ.get("DATAHUB_GMS_TOKEN")
     if not gms_url or not gms_token:
         return _not_configured()
-    command = os.environ.get("DATAHUB_MCP_COMMAND", "uvx")
+    command = os.environ.get("DATAHUB_MCP_COMMAND", "mcp-server-datahub")
     environment = {**os.environ, "DATAHUB_GMS_URL": gms_url, "DATAHUB_GMS_TOKEN": gms_token}
     try:
         with subprocess.Popen(
-            [command, "mcp-server-datahub@latest"],
+            [command],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
