@@ -18,6 +18,7 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
   assert.match(page, /DataHub turns raw feeds into the trusted context/i);
+  assert.doesNotMatch(page, /From data to defensible action/i);
   assert.match(evidenceGraph, /Interactive agent evidence graph/i);
   assert.match(evidenceGraph, /The DataHub unlock/i);
   assert.match(evidenceGraph, /Schema · lineage · quality/i);

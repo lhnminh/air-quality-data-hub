@@ -468,14 +468,6 @@ export default function Home() {
             reportReady={Boolean(report)}
             toolTrace={toolTrace}
           />
-
-          <div className="draft-note">
-            <strong>From data to defensible action</strong>
-            <p>
-              DataHub adds meaning and governance; Neon supplies bounded facts.
-              Together they keep the report source-aware and auditable.
-            </p>
-          </div>
         </aside>
 
         <section className="center-column" aria-label="Map and historic air quality">

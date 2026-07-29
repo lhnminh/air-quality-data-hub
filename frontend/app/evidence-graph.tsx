@@ -27,7 +27,7 @@ type EvidenceGraphProps = {
   toolTrace: ToolTrace[];
 };
 
-type NodeKind = "source" | "store" | "datahub" | "agent" | "output" | "control";
+type NodeKind = "source" | "store" | "datahub" | "agent" | "output";
 type GraphNode = {
   id: string;
   label: string;
@@ -108,14 +108,6 @@ const nodes: GraphNode[] = [
     detail: "A source-aware report with ranked hypotheses, limitations, and data-quality notes.",
     unlock: "Traceable insight",
   },
-  {
-    id: "review",
-    label: "Human review",
-    shortLabel: "OK",
-    kind: "control",
-    detail: "Consequential action remains review-only; the agent does not send a public alert.",
-    unlock: "Governed action",
-  },
 ];
 
 const initialPositions: Record<string, Point> = {
@@ -126,8 +118,7 @@ const initialPositions: Record<string, Point> = {
   datahub: { x: 205, y: 112 },
   neon: { x: 205, y: 268 },
   agent: { x: 340, y: 190 },
-  report: { x: 465, y: 116 },
-  review: { x: 465, y: 274 },
+  report: { x: 465, y: 190 },
 };
 
 const edges = [
@@ -142,7 +133,6 @@ const edges = [
   { source: "datahub", target: "agent", label: "governs" },
   { source: "neon", target: "agent", label: "evidence" },
   { source: "agent", target: "report", label: "explains" },
-  { source: "report", target: "review", label: "requires" },
   { source: "report", target: "datahub", label: "writes back" },
 ] as const;
 
@@ -204,7 +194,6 @@ export default function EvidenceGraph({
     datahub: dataHubTrace?.status ?? (isGeneratingReport ? "running" : "ready"),
     agent: isGeneratingReport ? "running" : reportReady ? "ready" : "waiting",
     report: reportReady ? "ready" : isGeneratingReport ? "running" : "waiting",
-    review: reportReady ? "ready" : "waiting",
   };
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? nodes[5];
