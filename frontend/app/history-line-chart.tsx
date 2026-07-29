@@ -1,4 +1,5 @@
 type HistoryLineChartProps = {
+  location: string;
   rows: Array<{
     observed_on: string;
     us_aqi: number | null;
@@ -20,7 +21,7 @@ function formatShortDate(value: string) {
   }).format(date);
 }
 
-export default function HistoryLineChart({ rows }: HistoryLineChartProps) {
+export default function HistoryLineChart({ location, rows }: HistoryLineChartProps) {
   const usableRows = rows.filter(
     (row): row is { observed_on: string; us_aqi: number } => row.us_aqi !== null,
   );
@@ -63,12 +64,12 @@ export default function HistoryLineChart({ rows }: HistoryLineChartProps) {
   return (
     <div className="history-line-chart">
       <svg
-        aria-label="Thirty-day Hanoi US AQI trend"
+        aria-label={`Thirty-day ${location} US AQI trend`}
         className="history-line-svg"
         role="img"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       >
-        <title>Thirty-day Hanoi US AQI trend</title>
+        <title>Thirty-day {location} US AQI trend</title>
 
         {yTicks.map((tick) => (
           <g className="history-line-grid" key={tick}>

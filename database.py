@@ -185,6 +185,56 @@ def get_city_air_quality_history(
     return [dict(row) for row in rows]
 
 
+def get_district_air_quality_history(
+    district_name: str,
+    days: int = 30,
+) -> list[dict[str, Any]]:
+    """Return the latest available modeled district history chronologically."""
+    safe_days = min(max(days, 1), 3660)
+
+    query = """
+        WITH latest_history AS (
+            SELECT
+                source,
+                attribution,
+                model_domain,
+                data_class,
+                aggregation_period,
+                observed_on,
+                district_name,
+                requested_longitude,
+                requested_latitude,
+                model_longitude,
+                model_latitude,
+                pm2_5_ug_m3,
+                pm10_ug_m3,
+                nitrogen_dioxide_ug_m3,
+                sulphur_dioxide_ug_m3,
+                carbon_monoxide_ug_m3,
+                ozone_ug_m3,
+                us_aqi,
+                sample_count
+            FROM district_air_quality_history
+            WHERE LOWER(district_name) = LOWER(%s)
+            ORDER BY observed_on DESC
+            LIMIT %s
+        )
+        SELECT *
+        FROM latest_history
+        ORDER BY observed_on ASC
+    """
+
+    with psycopg.connect(
+        get_database_url(),
+        row_factory=dict_row,
+    ) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, [district_name.strip(), safe_days])
+            rows = cursor.fetchall()
+
+    return [dict(row) for row in rows]
+
+
 def get_recent_traffic_observations(limit: int = 20) -> list[dict[str, Any]]:
     safe_limit = min(max(limit, 1), 100)
 

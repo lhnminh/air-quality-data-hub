@@ -140,6 +140,42 @@ ON city_air_quality_history (city, observed_on DESC);
 """
 
 
+create_district_air_quality_history_table_sql = """
+CREATE TABLE IF NOT EXISTS district_air_quality_history (
+    district_air_quality_history_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source TEXT NOT NULL,
+    attribution TEXT NOT NULL,
+    model_domain TEXT NOT NULL,
+    data_class TEXT NOT NULL CHECK (data_class = 'modeled'),
+    aggregation_period TEXT NOT NULL CHECK (aggregation_period = 'daily_mean'),
+    collected_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    observed_on DATE NOT NULL,
+    district_name TEXT NOT NULL,
+    requested_longitude DOUBLE PRECISION NOT NULL,
+    requested_latitude DOUBLE PRECISION NOT NULL,
+    model_longitude DOUBLE PRECISION NOT NULL,
+    model_latitude DOUBLE PRECISION NOT NULL,
+    pm2_5_ug_m3 DOUBLE PRECISION,
+    pm10_ug_m3 DOUBLE PRECISION,
+    nitrogen_dioxide_ug_m3 DOUBLE PRECISION,
+    sulphur_dioxide_ug_m3 DOUBLE PRECISION,
+    carbon_monoxide_ug_m3 DOUBLE PRECISION,
+    ozone_ug_m3 DOUBLE PRECISION,
+    us_aqi DOUBLE PRECISION,
+    sample_count INTEGER NOT NULL CHECK (sample_count > 0),
+    raw_response JSONB NOT NULL,
+
+    UNIQUE (source, district_name, observed_on)
+);
+"""
+
+
+create_district_air_quality_history_index_sql = """
+CREATE INDEX IF NOT EXISTS district_air_quality_history_district_date_index
+ON district_air_quality_history (district_name, observed_on DESC);
+"""
+
+
 create_traffic_table_sql = """
 CREATE TABLE IF NOT EXISTS traffic_observations (
     traffic_observation_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -243,6 +279,8 @@ with psycopg.connect(database_url) as connection:
         cursor.execute(create_modeled_air_quality_index_sql)
         cursor.execute(create_city_air_quality_history_table_sql)
         cursor.execute(create_city_air_quality_history_index_sql)
+        cursor.execute(create_district_air_quality_history_table_sql)
+        cursor.execute(create_district_air_quality_history_index_sql)
         cursor.execute(create_traffic_table_sql)
         cursor.execute(migrate_traffic_columns_sql)
         cursor.execute(create_traffic_index_sql)
@@ -257,6 +295,7 @@ print("Created table: air_quality_observations")
 print("Created table: weather_observations")
 print("Created table: modeled_air_quality_observations")
 print("Created table: city_air_quality_history")
+print("Created table: district_air_quality_history")
 print("Created table: traffic_observations")
 print("Created table: investigations")
 print("Created table: investigation_evidence")

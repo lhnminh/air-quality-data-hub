@@ -227,6 +227,33 @@ duplicates. The dashboard API can read the latest available daily rows with:
 GET /api/city-air-quality-history?city=Hanoi&days=30
 ```
 
+### Backfill modeled district air-quality history
+
+The district backfill retrieves Open-Meteo's CAMS global model for the eight
+pilot-district coordinates and stores one daily-mean row per district. Validate
+a short range without changing Neon first:
+
+```bash
+uv run python scripts/backfill_district_air_quality_history.py \
+  --start-date 2026-02-01 --end-date 2026-02-07
+```
+
+Create the table and backfill from August 2022 through yesterday:
+
+```bash
+uv run python scripts/create_postgres_tables.py
+uv run python scripts/backfill_district_air_quality_history.py --apply
+```
+
+The model's regional grid is coarser than a Hanoi district. These records are
+district-coordinate estimates, not measurements from physical district sensors.
+The table retains both the requested district coordinate and returned model-grid
+coordinate so that limitation remains visible. The idempotent API is:
+
+```text
+GET /api/district-air-quality-history?district_name=Hoan%20Kiem&days=30
+```
+
 Clicking a district prepares an **Inspect [district] air quality** prompt in the
 dashboard. When the user sends it, Gemini acts as a bounded investigation agent:
 it checks four live DataHub source contracts (CAMS, IQAir, weather, and TomTom)

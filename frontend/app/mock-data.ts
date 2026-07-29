@@ -66,6 +66,28 @@ export type CityAirQualityHistoryObservation = {
   dust_ug_m3: number | null;
 };
 
+export type DistrictAirQualityHistoryObservation = {
+  source: string;
+  attribution: string;
+  model_domain: "cams_global";
+  data_class: "modeled";
+  aggregation_period: "daily_mean";
+  observed_on: string;
+  district_name: string;
+  requested_longitude: number;
+  requested_latitude: number;
+  model_longitude: number;
+  model_latitude: number;
+  pm2_5_ug_m3: number | null;
+  pm10_ug_m3: number | null;
+  nitrogen_dioxide_ug_m3: number | null;
+  sulphur_dioxide_ug_m3: number | null;
+  carbon_monoxide_ug_m3: number | null;
+  ozone_ug_m3: number | null;
+  us_aqi: number | null;
+  sample_count: number;
+};
+
 export type TrafficObservation = {
   source: string;
   district_name: string;

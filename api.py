@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from database import (
     check_database_connection,
     get_city_air_quality_history,
+    get_district_air_quality_history,
     get_district_statuses,
     get_district_investigation_context,
     get_recent_modeled_air_quality_observations,
@@ -87,6 +88,30 @@ def city_air_quality_history(
     observations = get_city_air_quality_history(city=city, days=days)
     return {
         "city": city,
+        "days": days,
+        "count": len(observations),
+        "observations": observations,
+    }
+
+
+@app.get("/api/district-air-quality-history")
+def district_air_quality_history(
+    district_name: str = Query(min_length=1, max_length=100),
+    days: int = Query(default=30, ge=1, le=3660),
+) -> dict:
+    canonical_names = {
+        district["name"].casefold(): district["name"] for district in DISTRICTS
+    }
+    canonical_name = canonical_names.get(district_name.strip().casefold())
+    if not canonical_name:
+        raise HTTPException(status_code=404, detail="Unknown Hanoi pilot district")
+
+    observations = get_district_air_quality_history(
+        district_name=canonical_name,
+        days=days,
+    )
+    return {
+        "district_name": canonical_name,
         "days": days,
         "count": len(observations),
         "observations": observations,

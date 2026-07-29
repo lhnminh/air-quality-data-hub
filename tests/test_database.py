@@ -227,6 +227,28 @@ def test_get_city_air_quality_history(fake_cursor):
     assert observations[0]["us_aqi"] == 84.5
 
 
+def test_get_district_air_quality_history(fake_cursor):
+    fake_cursor.fetchall.return_value = [
+        {
+            "source": "Open-Meteo CAMS global daily mean",
+            "observed_on": "2026-02-18",
+            "district_name": "Hoan Kiem",
+            "us_aqi": 84.5,
+        }
+    ]
+
+    observations = database.get_district_air_quality_history(
+        " Hoan Kiem ",
+        days=30,
+    )
+
+    query, values = fake_cursor.execute.call_args.args
+    assert "FROM district_air_quality_history" in query
+    assert values == ["Hoan Kiem", 30]
+    assert observations[0]["district_name"] == "Hoan Kiem"
+    assert observations[0]["us_aqi"] == 84.5
+
+
 def test_save_tomtom_traffic_observation(fake_cursor):
     fake_cursor.fetchone.return_value = (1,)
     traffic_result = {

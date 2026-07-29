@@ -6,7 +6,7 @@ import {
   mockDistrictStatuses,
   mockObservations,
   type AirObservation,
-  type CityAirQualityHistoryObservation,
+  type DistrictAirQualityHistoryObservation,
   type DistrictStatus,
   type ModeledAirQualityObservation,
   type WeatherObservation,
@@ -104,15 +104,22 @@ async function requestModeledAirQuality() {
   }
 }
 
-async function requestCityAirQualityHistory(days: HistoryDays) {
+async function requestDistrictAirQualityHistory(
+  districtName: string,
+  days: HistoryDays,
+) {
   try {
+    const query = new URLSearchParams({
+      district_name: districtName,
+      days: String(days),
+    });
     const response = await fetch(
-      `${apiUrl}/api/city-air-quality-history?city=Hanoi&days=${days}`,
+      `${apiUrl}/api/district-air-quality-history?${query}`,
     );
     if (!response.ok) return null;
 
     const result = (await response.json()) as {
-      observations: CityAirQualityHistoryObservation[];
+      observations: DistrictAirQualityHistoryObservation[];
     };
     return result.observations;
   } catch {
@@ -181,7 +188,7 @@ function formatHistoryMonth(value: string) {
 }
 
 function monthlyHistoryAverages(
-  rows: CityAirQualityHistoryObservation[],
+  rows: DistrictAirQualityHistoryObservation[],
 ): HistoryDisplayObservation[] {
   const monthly = new Map<
     string,
@@ -237,8 +244,8 @@ function modeLabel(mode: DataMode) {
 
 export default function Home() {
   const [observations, setObservations] = useState<AirObservation[]>([]);
-  const [cityHistory, setCityHistory] = useState<
-    CityAirQualityHistoryObservation[]
+  const [districtHistory, setDistrictHistory] = useState<
+    DistrictAirQualityHistoryObservation[]
   >([]);
   const [districtStatuses, setDistrictStatuses] = useState<DistrictStatus[]>([]);
   const [dataMode, setDataMode] = useState<DataMode>("loading");
@@ -264,7 +271,7 @@ export default function Home() {
       weatherResult: WeatherObservation[] | null,
       modeledResult: ModeledAirQualityObservation[] | null,
       districtResult: DistrictStatus[] | null,
-      historyResult: CityAirQualityHistoryObservation[] | null,
+      historyResult: DistrictAirQualityHistoryObservation[] | null,
     ) => {
       if (!observationResult?.length) {
         setObservations(mockObservations);
@@ -278,10 +285,10 @@ export default function Home() {
       setModeledAirQualityMode(modeledResult?.length ? "postgresql" : "demo");
 
       if (!historyResult?.length) {
-        setCityHistory([]);
+        setDistrictHistory([]);
         setHistoryMode("unavailable");
       } else {
-        setCityHistory(historyResult);
+        setDistrictHistory(historyResult);
         setHistoryMode("postgresql");
       }
 
@@ -307,11 +314,11 @@ export default function Home() {
       requestWeather(),
       requestModeledAirQuality(),
       requestDistrictStatuses(),
-      requestCityAirQualityHistory(historyDays),
+      requestDistrictAirQualityHistory(selectedDistrictName, historyDays),
     ]);
     applyResults(...results);
     setIsRefreshing(false);
-  }, [applyResults, historyDays]);
+  }, [applyResults, historyDays, selectedDistrictName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -321,7 +328,7 @@ export default function Home() {
       requestWeather(),
       requestModeledAirQuality(),
       requestDistrictStatuses(),
-      requestCityAirQualityHistory(historyDays),
+      requestDistrictAirQualityHistory(selectedDistrictName, historyDays),
     ]).then((results) => {
       if (!cancelled) applyResults(...results);
     });
@@ -329,7 +336,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [applyResults, historyDays]);
+  }, [applyResults, historyDays, selectedDistrictName]);
 
   const selectedDistrict = districtStatuses.find(
     (district) => district.district_name === selectedDistrictName,
@@ -339,14 +346,14 @@ export default function Home() {
   const displayedHistory = useMemo<HistoryDisplayObservation[]>(
     () =>
       isMonthlyHistory
-        ? monthlyHistoryAverages(cityHistory)
-        : cityHistory.map((row) => ({
+        ? monthlyHistoryAverages(districtHistory)
+        : districtHistory.map((row) => ({
             observed_on: row.observed_on,
             us_aqi: row.us_aqi,
             pm2_5_ug_m3: row.pm2_5_ug_m3,
             sample_count: 1,
           })),
-    [cityHistory, isMonthlyHistory],
+    [districtHistory, isMonthlyHistory],
   );
   const historyWithAqi = useMemo(
     () => displayedHistory.filter((row) => row.us_aqi !== null),
@@ -363,6 +370,7 @@ export default function Home() {
 
   const selectDistrictForInspection = useCallback((districtName: string) => {
     setSelectedDistrictName(districtName);
+    setHistoryMode("loading");
     setChatPrompt(`Inspect ${districtName} air quality`);
     setReport(null);
     setToolTrace([]);
@@ -538,7 +546,7 @@ export default function Home() {
             <div className="panel-heading history-heading">
               <div>
                 <p className="eyebrow">Daily history from Neon</p>
-                <h2 id="history-title">Hanoi historical AQI</h2>
+                <h2 id="history-title">{displayedLocation} historical AQI</h2>
               </div>
               <div className="history-actions" aria-label="History range">
                 {([7, 30, 365] as HistoryDays[]).map((days) => (
@@ -556,26 +564,28 @@ export default function Home() {
 
             <p className="history-note">
               {isMonthlyHistory
-                ? "Monthly means calculated from the available daily CAMS model values."
-                : "Open-Meteo CAMS daily model averages."}
-              {" · "}Not IQAir or monitoring-station measurements.
+                ? "Monthly means calculated from modeled daily district-coordinate estimates."
+                : "Open-Meteo CAMS daily district-coordinate estimates."}
+              {" · "}Regional model, not IQAir or district sensor measurements.
             </p>
 
             {historyMode === "loading" ? (
               <div className="history-empty">Loading historical records…</div>
             ) : historyMode === "unavailable" ? (
               <div className="history-empty">
-                Historical files are validated locally. Run the documented Neon
-                import to populate this panel.
+                No modeled history is available for {displayedLocation}.
               </div>
             ) : (
               <div className="history-content">
                 {historyDays === 30 ? (
-                  <HistoryLineChart rows={displayedHistory} />
+                  <HistoryLineChart
+                    location={displayedLocation}
+                    rows={displayedHistory}
+                  />
                 ) : (
                   <div
                     className="chart"
-                    aria-label={`${isMonthlyHistory ? "Monthly" : "Daily"} historical Hanoi US AQI bar chart`}
+                    aria-label={`${isMonthlyHistory ? "Monthly" : "Daily"} historical ${displayedLocation} US AQI bar chart`}
                   >
                     {chartRows.map((row) => (
                       <div className="chart-column" key={row.observed_on}>
@@ -635,12 +645,12 @@ export default function Home() {
             )}
 
             <div className="history-footer">
-              <code>city_air_quality_history</code>
+              <code>district_air_quality_history</code>
               <span>
                 {historyMode === "postgresql"
                   ? isMonthlyHistory
-                    ? `${displayedHistory.length} monthly means from ${cityHistory.length} daily records`
-                    : `${cityHistory.length} daily records loaded`
+                    ? `${displayedHistory.length} monthly means from ${districtHistory.length} daily records`
+                    : `${districtHistory.length} daily records loaded`
                   : "Awaiting Neon import"}
               </span>
             </div>

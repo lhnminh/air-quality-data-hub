@@ -17,7 +17,7 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
   assert.match(page, /Hanoi district map/i);
-  assert.match(page, /Hanoi historical AQI/i);
+  assert.match(page, /displayedLocation.*historical AQI/i);
   assert.match(page, /Ask about the air/i);
   assert.match(page, /api\/investigate/i);
   assert.match(page, /Gemini is reviewing selected evidence/i);
@@ -28,13 +28,13 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Agent evidence trail/i);
   assert.match(page, /Human review needed/i);
   assert.match(styles, /\.tool-trace-card/);
-  assert.match(page, /city_air_quality_history/i);
-  assert.match(page, /api\/city-air-quality-history/i);
-  assert.match(page, /Open-Meteo CAMS daily model averages/i);
+  assert.match(page, /district_air_quality_history/i);
+  assert.match(page, /api\/district-air-quality-history/i);
+  assert.match(page, /Open-Meteo CAMS daily district-coordinate estimates/i);
   assert.match(page, /Monthly means calculated/i);
   assert.match(page, /monthlyHistoryAverages/i);
   assert.match(page, /HistoryLineChart/i);
-  assert.match(historyLineChart, /Thirty-day Hanoi US AQI trend/i);
+  assert.match(historyLineChart, /Thirty-day.*location.*US AQI trend/i);
   assert.match(styles, /\.history-line-path/);
   assert.match(styles, /grid-template-columns:[^;]+/i);
   assert.match(styles, /\.ai-panel/);
