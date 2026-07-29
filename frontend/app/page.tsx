@@ -12,6 +12,7 @@ import {
   type WeatherObservation,
 } from "./mock-data";
 import HistoryLineChart from "./history-line-chart";
+import EvidenceGraph from "./evidence-graph";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -236,12 +237,6 @@ function monthlyHistoryAverages(
     }));
 }
 
-function modeLabel(mode: DataMode) {
-  if (mode === "loading") return "Checking";
-  if (mode === "postgresql") return "Connected";
-  return "Sample data";
-}
-
 export default function Home() {
   const [observations, setObservations] = useState<AirObservation[]>([]);
   const [districtHistory, setDistrictHistory] = useState<
@@ -456,54 +451,29 @@ export default function Home() {
               <p className="eyebrow">AI workspace</p>
               <h1 id="ai-activity-title">Activity graph</h1>
             </div>
-            <span className="draft-badge">Draft</span>
+            <span className="draft-badge">Live trace</span>
           </div>
 
           <p className="panel-intro">
-            Trace the evidence used for an inspection before Gemini writes its
-            report.
+            Explore how DataHub turns raw feeds into the trusted context Gemini
+            uses to explain a report.
           </p>
 
-          <ol className="activity-flow">
-            <li className={dataMode === "loading" ? "active" : "complete"}>
-              <span className="flow-node" />
-              <div>
-                <strong>Read air-quality feed</strong>
-                <small>{modeLabel(dataMode)} · IQAir observations</small>
-              </div>
-            </li>
-            <li className={weatherMode === "loading" ? "active" : "complete"}>
-              <span className="flow-node" />
-              <div>
-                <strong>Check weather and wind</strong>
-                <small>{modeLabel(weatherMode)} · Open-Meteo</small>
-              </div>
-            </li>
-            <li
-              className={
-                modeledAirQualityMode === "loading" ? "active" : "complete"
-              }
-            >
-              <span className="flow-node" />
-              <div>
-                <strong>Compare pollutant signals</strong>
-                <small>{modeLabel(modeledAirQualityMode)} · CAMS model</small>
-              </div>
-            </li>
-            <li className={isGeneratingReport ? "active" : "planned"}>
-              <span className="flow-node" />
-              <div>
-                <strong>Build an AI summary</strong>
-                <small>{isGeneratingReport ? "Gemini is reviewing selected evidence" : "Ready when you send an inspection"}</small>
-              </div>
-            </li>
-          </ol>
+          <EvidenceGraph
+            districtName={displayedLocation}
+            dataMode={dataMode}
+            weatherMode={weatherMode}
+            modeledAirQualityMode={modeledAirQualityMode}
+            isGeneratingReport={isGeneratingReport}
+            reportReady={Boolean(report)}
+            toolTrace={toolTrace}
+          />
 
           <div className="draft-note">
-            <strong>Evidence-first reporting</strong>
+            <strong>From data to defensible action</strong>
             <p>
-              Gemini receives a limited package of the selected district&apos;s
-              latest data. It does not get direct database access.
+              DataHub adds meaning and governance; Neon supplies bounded facts.
+              Together they keep the report source-aware and auditable.
             </p>
           </div>
         </aside>
