@@ -53,7 +53,38 @@ TOOL_DECLARATIONS = [
         ),
         "parameters": {"type": "OBJECT", "properties": {}},
     },
+    {
+        "name": "compare_district_evidence",
+        "description": (
+            "Compare the bounded CAMS, IQAir, weather, and TomTom evidence for "
+            "the selected district and one explicitly requested Hanoi pilot district."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "district_name": {"type": "STRING"},
+                "comparison_district_name": {"type": "STRING"},
+            },
+            "required": ["district_name", "comparison_district_name"],
+        },
+    },
 ]
+
+
+def _tools_for_request(comparison_district_name: str | None) -> list[dict[str, Any]]:
+    """Avoid offering the single-district history tool during a comparison.
+
+    The comparison tool already retrieves history for both districts. Keeping the
+    narrower history tool out of that request prevents Gemini from accidentally
+    asking it for the comparison district and receiving a safety rejection.
+    """
+    if not comparison_district_name:
+        return TOOL_DECLARATIONS
+    return [
+        declaration
+        for declaration in TOOL_DECLARATIONS
+        if declaration["name"] != "get_district_history"
+    ]
 
 
 def _gemini_request(payload: dict[str, Any]) -> dict[str, Any]:
@@ -101,7 +132,33 @@ def _tool_result(
     tool_name: str,
     arguments: dict[str, Any],
     district_name: str,
+    comparison_district_name: str | None = None,
 ) -> dict[str, Any]:
+    if tool_name == "compare_district_evidence":
+        requested_district = arguments.get("district_name", district_name)
+        requested_comparison = arguments.get("comparison_district_name")
+        if (
+            not comparison_district_name
+            or requested_district != district_name
+            or requested_comparison != comparison_district_name
+        ):
+            return {
+                "status": "rejected",
+                "summary": "Comparisons are limited to the two districts chosen by the user.",
+            }
+        primary = get_district_investigation_context(district_name)
+        comparison = get_district_investigation_context(comparison_district_name)
+        return {
+            "status": "connected" if primary and comparison else "missing",
+            "primary_evidence": primary or {},
+            "comparison_evidence": comparison or {},
+            "primary_history": get_district_history(district_name),
+            "comparison_history": get_district_history(comparison_district_name),
+            "summary": (
+                f"Retrieved bounded CAMS, IQAir, weather, TomTom, and recent model-history "
+                f"evidence for {district_name} and {comparison_district_name}."
+            ),
+        }
     requested_district = arguments.get("district_name", district_name)
     if requested_district != district_name:
         return {"status": "rejected", "summary": "Only the selected district may be queried."}
@@ -373,12 +430,167 @@ def _apply_verified_facts(
     report["assessment_method"] = assessment.get("method")
 
 
+def _prepend_inspection_evidence_lead(
+    report: dict[str, Any],
+    context: dict[str, Any],
+    history: list[dict[str, Any]],
+) -> None:
+    """Add one verified AQI/PM2.5 lead without relying on Gemini's wording."""
+    aqi = _as_number(context.get("district_us_aqi"))
+    pm25 = _as_number(context.get("district_pm2_5_ug_m3"))
+    if aqi is None and pm25 is None:
+        return
+    historical_aqi = [_as_number(row.get("us_aqi")) for row in history]
+    historical_pm25 = [_as_number(row.get("pm2_5_ug_m3")) for row in history]
+    usable_aqi_history = [value for value in historical_aqi if value is not None]
+    usable_history = [value for value in historical_pm25 if value is not None]
+    lead_parts: list[str] = []
+    if aqi is not None and usable_aqi_history:
+        recent_aqi_median = median(usable_aqi_history)
+        aqi_change_percent = (
+            (aqi - recent_aqi_median) / recent_aqi_median * 100 if recent_aqi_median else 0
+        )
+        if aqi_change_percent >= 20:
+            relation = f"elevated at {aqi:.0f}, {aqi_change_percent:.0f}% above"
+        elif aqi_change_percent <= -20:
+            relation = f"{aqi:.0f}, {abs(aqi_change_percent):.0f}% below"
+        else:
+            relation = f"{aqi:.0f}, close to"
+        lead_parts.append(
+            f"The current CAMS-modelled US AQI is {relation} the recent district median of "
+            f"{recent_aqi_median:.0f}; higher AQI values indicate worse modelled air quality."
+        )
+    elif aqi is not None:
+        lead_parts.append(
+            f"The current CAMS-modelled US AQI is {aqi:.0f}; higher AQI values indicate worse "
+            "modelled air quality, but recent district history is unavailable for a trend comparison."
+        )
+    if pm25 is not None and usable_history:
+        recent_median = median(usable_history)
+        change_percent = ((pm25 - recent_median) / recent_median * 100) if recent_median else 0
+        if change_percent >= 20:
+            lead_parts.append(
+                f"Modelled PM2.5 is elevated at {pm25:.1f} µg/m³, {change_percent:.0f}% above "
+                f"the recent district median of {recent_median:.1f} µg/m³."
+            )
+        elif change_percent <= -20:
+            lead_parts.append(
+                f"Modelled PM2.5 is {pm25:.1f} µg/m³, {abs(change_percent):.0f}% below "
+                f"the recent district median of {recent_median:.1f} µg/m³."
+            )
+        else:
+            lead_parts.append(
+                f"Modelled PM2.5 is {pm25:.1f} µg/m³, close to the recent district "
+                f"median of {recent_median:.1f} µg/m³."
+            )
+    elif pm25 is not None:
+        lead_parts.append(
+            f"Modelled PM2.5 is {pm25:.1f} µg/m³; recent district history is unavailable "
+            "for a trend comparison."
+        )
+    lead = " ".join(lead_parts)
+    summary = str(report.get("summary", "")).strip()
+    report["summary"] = f"{lead} {summary}".strip()
+
+
+def _comparison_facts(context: dict[str, Any]) -> list[dict[str, str]]:
+    """Return a compact, source-controlled counterpart snapshot for comparisons."""
+    district = context.get("district_name", "Comparison district")
+    road = context.get("traffic_road_name") or district
+    speed = context.get("traffic_current_speed_kmh")
+    free_flow = context.get("traffic_free_flow_speed_kmh")
+    speed_value = (
+        f"{speed} km/h (free flow {free_flow} km/h)"
+        if speed is not None and free_flow is not None
+        else "No current reading"
+    )
+    return [
+        {
+            "label": f"{district} modelled US AQI",
+            "value": _value(context.get("district_us_aqi")),
+            "source": "Open-Meteo CAMS model estimate",
+        },
+        {
+            "label": f"{district} modelled PM2.5",
+            "value": _value(context.get("district_pm2_5_ug_m3"), " µg/m³"),
+            "source": "Open-Meteo CAMS model estimate",
+        },
+        {
+            "label": f"Wind in {district}",
+            "value": _value(context.get("wind_speed_kmh"), " km/h"),
+            "source": "Open-Meteo weather model",
+        },
+        {
+            "label": f"Traffic on {road}",
+            "value": speed_value,
+            "source": "TomTom Traffic Flow",
+        },
+    ]
+
+
+def _apply_comparison(
+    report: dict[str, Any],
+    primary: dict[str, Any],
+    comparison: dict[str, Any],
+) -> None:
+    """Make a comparison explicit without letting Gemini invent either side's values."""
+    first = primary.get("district_name", "Selected district")
+    second = comparison.get("district_name", "Comparison district")
+    first_aqi = _as_number(primary.get("district_us_aqi"))
+    second_aqi = _as_number(comparison.get("district_us_aqi"))
+    if first_aqi is not None and second_aqi is not None:
+        difference = abs(first_aqi - second_aqi)
+        if difference == 0:
+            comparison_sentence = (
+                f"{first} and {second} have the same current CAMS-modelled AQI "
+                f"of {first_aqi:.0f}."
+            )
+        else:
+            higher = first if first_aqi > second_aqi else second
+            comparison_sentence = (
+                f"{higher} has the higher current CAMS-modelled AQI; the difference is "
+                f"{difference:.0f} AQI points."
+            )
+    else:
+        comparison_sentence = "One or both districts are missing a current modelled AQI."
+    report["title"] = f"Air-quality comparison — {first} vs {second}"
+    report["summary"] = f"{report['summary']} {comparison_sentence}"
+    # Keep matching facts beside one another in the two-column UI: AQI versus
+    # AQI, then PM2.5 versus PM2.5, wind versus wind, and traffic versus traffic.
+    # This is clearer than grouping all four facts by district.
+    primary_facts = _comparison_facts(primary)
+    comparison_facts = _comparison_facts(comparison)
+    report["numeric_summary"] = [
+        fact
+        for pair in zip(primary_facts, comparison_facts)
+        for fact in pair
+    ]
+    report["comparison_note"] = (
+        "Both district values are CAMS model estimates. IQAir remains a separate, "
+        "city-wide reference; weather and one TomTom road point per district provide context only."
+    )
+    report["comparison_mode"] = True
+
+
 def _fallback_agent_result(
-    district_name: str, prompt: str, tool_trace: list[dict[str, Any]], datahub_context: dict[str, Any]
+    district_name: str,
+    prompt: str,
+    tool_trace: list[dict[str, Any]],
+    datahub_context: dict[str, Any],
+    comparison_district_name: str | None = None,
 ) -> dict[str, Any]:
     evidence = get_district_investigation_context(district_name) or {"district_name": district_name}
     report = _fallback_report(evidence)
     _apply_verified_facts(report, evidence, datahub_context, get_district_history(district_name))
+    if comparison_district_name:
+        comparison = get_district_investigation_context(comparison_district_name) or {
+            "district_name": comparison_district_name
+        }
+        _apply_comparison(report, evidence, comparison)
+    else:
+        _prepend_inspection_evidence_lead(
+            report, evidence, get_district_history(district_name)
+        )
     report["recommended_action"] = {
         "type": "human_review",
         "description": "Review the evidence before any public alert or operational response.",
@@ -400,7 +612,11 @@ def _fallback_agent_result(
     return {"report": report, "tool_trace": tool_trace, "investigation": saved}
 
 
-def run_district_agent(district_name: str, prompt: str) -> dict[str, Any]:
+def run_district_agent(
+    district_name: str,
+    prompt: str,
+    comparison_district_name: str | None = None,
+) -> dict[str, Any]:
     """Let Gemini select bounded tools, then persist a review-only outcome."""
     system_instruction = """
 You are the AirTrace investigation agent for Hanoi. You must first inspect
@@ -427,21 +643,63 @@ from the bounded evidence package. The application will display only those real
 values and their source labels. Always select district_aqi, district_pm25, and
 traffic_speed; use the remaining slots for the strongest contextual evidence.
 Never write a value or source label yourself. For each potential cause, include
-its transparent evidence score and both supporting and contradicting evidence
-from evaluate_district_hypotheses. Scores are not probabilities or proof.
+only evidence that is actually returned by the allowed tools.
 """.strip()
+    if comparison_district_name:
+        system_instruction += (
+            "\nThis is a comparison request. You must call compare_district_evidence for "
+            f"{district_name} and {comparison_district_name}. Write a short, useful comparison "
+            "analysis, not a list of numbers. Explain what the AQI comparison means (a higher "
+            "AQI means worse modelled air quality; equal AQIs mean this model does not show a "
+            "current difference), what PM2.5 means (fine particle pollution), and whether the "
+            "wind and traffic values support a meaningful contextual difference. Lower wind can "
+            "limit dispersion; traffic speed compared with free-flow speed describes one road's "
+            "flow only. Never treat wind or traffic as proof of a pollution source. If evidence "
+            "is the same or too limited, say that plainly. Explain only differences supported by "
+            "the bounded evidence. Keep summary to two or three concise sentences; do not repeat "
+            "every number because the fact cards show them. In potential_causes, return two or "
+            "three short comparison interpretations: one about what the air-quality difference "
+            "means, one about whether wind and traffic distinguish the districts, and, when "
+            "needed, one explaining why the available evidence cannot identify a pollution source. "
+            "These are interpretations without scores, not proof or a source ranking."
+        )
+    else:
+        system_instruction += (
+            "\nFor a normal inspection, the application adds the verified AQI-versus-history "
+            "and PM2.5 opening itself. Do not repeat current AQI or PM2.5 values in your summary. "
+            "Write two concise sentences interpreting only weather, traffic, and uncertainty "
+            "without claiming a proven cause. For each "
+            "potential cause, include its transparent evidence score and both "
+            "supporting and contradicting evidence from evaluate_district_hypotheses. Scores "
+            "are not probabilities or proof."
+        )
     contents: list[dict[str, Any]] = [
-        {"role": "user", "parts": [{"text": f"{prompt}\nSelected district: {district_name}"}]}
+        {
+            "role": "user",
+            "parts": [
+                {
+                    "text": (
+                        f"{prompt}\nSelected district: {district_name}"
+                        + (
+                            f"\nComparison district: {comparison_district_name}"
+                            if comparison_district_name
+                            else ""
+                        )
+                    )
+                }
+            ],
+        }
     ]
     tool_trace: list[dict[str, Any]] = []
     datahub_context: dict[str, Any] = {}
+    available_tools = _tools_for_request(comparison_district_name)
     try:
         for _ in range(3):
             response = _gemini_request(
                 {
                     "systemInstruction": {"parts": [{"text": system_instruction}]},
                     "contents": contents,
-                    "tools": [{"functionDeclarations": TOOL_DECLARATIONS}],
+                    "tools": [{"functionDeclarations": available_tools}],
                     "toolConfig": {"functionCallingConfig": {"mode": "ANY"}},
                     "generationConfig": {"temperature": 0.1, "maxOutputTokens": 700},
                 }
@@ -453,7 +711,12 @@ from evaluate_district_hypotheses. Scores are not probabilities or proof.
             contents.append(content)
             for call in calls:
                 tool_name = call.get("name", "")
-                result = _tool_result(tool_name, call.get("args", {}), district_name)
+                result = _tool_result(
+                    tool_name,
+                    call.get("args", {}),
+                    district_name,
+                    comparison_district_name,
+                )
                 trace = _trace_item(tool_name, result)
                 tool_trace.append(trace)
                 if tool_name == "get_datahub_context":
@@ -478,15 +741,29 @@ from evaluate_district_hypotheses. Scores are not probabilities or proof.
         required_tools = (
             "get_datahub_context",
             "get_district_evidence",
-            "get_district_history",
             "evaluate_district_hypotheses",
         )
+        if comparison_district_name:
+            # compare_district_evidence includes both histories.
+            required_tools = (*required_tools, "compare_district_evidence")
+        else:
+            required_tools = (*required_tools, "get_district_history")
         called_tools = {trace["tool_name"] for trace in tool_trace}
         required_evidence: dict[str, Any] = {}
         for tool_name in required_tools:
             if tool_name in called_tools:
                 continue
-            result = _tool_result(tool_name, {}, district_name)
+            arguments = (
+                {
+                    "district_name": district_name,
+                    "comparison_district_name": comparison_district_name,
+                }
+                if tool_name == "compare_district_evidence"
+                else {}
+            )
+            result = _tool_result(
+                tool_name, arguments, district_name, comparison_district_name
+            )
             trace = _trace_item(tool_name, result)
             tool_trace.append(trace)
             required_evidence[tool_name] = result
@@ -547,6 +824,17 @@ from evaluate_district_hypotheses. Scores are not probabilities or proof.
             datahub_context,
             get_district_history(district_name),
         )
+        if comparison_district_name:
+            comparison_context = get_district_investigation_context(
+                comparison_district_name
+            ) or {"district_name": comparison_district_name}
+            _apply_comparison(report, current_context, comparison_context)
+        else:
+            _prepend_inspection_evidence_lead(
+                report,
+                current_context,
+                get_district_history(district_name),
+            )
         report["recommended_action"] = {
             "type": "human_review",
             "description": "Review the evidence before any public alert or operational response.",
@@ -566,7 +854,13 @@ from evaluate_district_hypotheses. Scores are not probabilities or proof.
             tool_trace.append(
                 _trace_item("get_district_evidence", {"status": "connected", "evidence": evidence})
             )
-        return _fallback_agent_result(district_name, prompt, tool_trace, datahub_context)
+        return _fallback_agent_result(
+            district_name,
+            prompt,
+            tool_trace,
+            datahub_context,
+            comparison_district_name,
+        )
 
     datahub_write = save_investigation_document(
         f"District: {district_name}\nPrompt: {prompt}\nReport: {json.dumps(report, ensure_ascii=False)}",
