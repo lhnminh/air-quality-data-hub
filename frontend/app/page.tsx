@@ -474,19 +474,11 @@ export default function Home() {
         <aside className="workspace-panel ai-panel" aria-labelledby="ai-activity-title">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">AI workspace</p>
               <h1 id="ai-activity-title">Activity graph</h1>
             </div>
             <span className="draft-badge">Live trace</span>
           </div>
 
-          <div className="draft-note">
-            <strong>Evidence-first reporting</strong>
-            <p>
-              Gemini receives a limited package of the selected district&apos;s
-              latest data. It does not get direct database access.
-            </p>
-          </div>
           <EvidenceGraph
             districtName={displayedLocation}
             dataMode={dataMode}
@@ -502,7 +494,6 @@ export default function Home() {
           <article className="workspace-panel map-panel" aria-labelledby="map-title">
             <div className="panel-heading map-heading">
               <div>
-                <p className="eyebrow">Current conditions</p>
                 <h2 id="map-title">Hanoi district map</h2>
               </div>
               <span className={`source-badge ${districtMode}`}>
@@ -526,7 +517,6 @@ export default function Home() {
                 <strong>{displayedLocation}</strong>
               </div>
               <div className="report-context">
-                <span className="report-context-dot" />
                 <span>Click a district to prepare its AI inspection</span>
               </div>
             </div>
@@ -535,7 +525,6 @@ export default function Home() {
           <article className="workspace-panel history-panel" aria-labelledby="history-title">
             <div className="panel-heading history-heading">
               <div>
-                <p className="eyebrow">Daily history from Neon</p>
                 <h2 id="history-title">{displayedLocation} historical AQI</h2>
               </div>
               <div className="history-actions" aria-label="History range">
@@ -551,13 +540,6 @@ export default function Home() {
                 ))}
               </div>
             </div>
-
-            <p className="history-note">
-              {isMonthlyHistory
-                ? "Monthly means calculated from modeled daily district-coordinate estimates."
-                : "Open-Meteo CAMS daily district-coordinate estimates."}
-              {" · "}Regional model, not IQAir or district sensor measurements.
-            </p>
 
             {historyMode === "loading" ? (
               <div className="history-empty">Loading historical records…</div>
@@ -650,18 +632,9 @@ export default function Home() {
         <aside className={`workspace-panel chat-panel ${report || isGeneratingReport ? "has-active-report" : ""}`} aria-labelledby="chat-title">
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">AirTrace assistant</p>
               <h2 id="chat-title">Ask about the air</h2>
             </div>
             <span className="source-badge">Gemini</span>
-          </div>
-
-          <div className="chat-status">
-            <span className="chat-status-icon">AI</span>
-            <div>
-              <strong>Inspect a district</strong>
-              <small>Click a district to prepare a prompt, then send it.</small>
-            </div>
           </div>
 
           <div className="chat-thread" aria-label="AirTrace investigation report">

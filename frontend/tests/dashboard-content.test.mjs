@@ -17,6 +17,11 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Hanoi air-quality operations/i);
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
+  assert.doesNotMatch(
+    page,
+    /AI workspace|Current conditions|Daily history from Neon|AirTrace assistant/i,
+  );
+  assert.doesNotMatch(styles, /\.eyebrow/);
   assert.doesNotMatch(page, /DataHub turns raw feeds into the trusted context/i);
   assert.doesNotMatch(
     page,
@@ -24,8 +29,10 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   );
   assert.doesNotMatch(page, /From data to defensible action/i);
   assert.match(evidenceGraph, /Interactive agent evidence graph/i);
-  assert.match(evidenceGraph, /The DataHub unlock/i);
-  assert.match(evidenceGraph, /Schema · lineage · quality/i);
+  assert.doesNotMatch(page, /Evidence-first reporting/i);
+  assert.doesNotMatch(evidenceGraph, /The DataHub unlock/i);
+  assert.doesNotMatch(evidenceGraph, /Schema · lineage · quality/i);
+  assert.doesNotMatch(evidenceGraph, /Meaning.*Lineage.*Quality.*Audit/i);
   assert.match(evidenceGraph, /Drag nodes · scroll to zoom/i);
   assert.match(evidenceGraph, /graph-arrow-active/i);
   assert.match(styles, /graph-edge-sweep/i);
@@ -36,6 +43,7 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Hanoi district map/i);
   assert.match(page, /displayedLocation.*historical AQI/i);
   assert.match(page, /Ask about the air/i);
+  assert.doesNotMatch(page, /Click a district to prepare a prompt, then send it/i);
   assert.match(page, /api\/investigate/i);
   assert.doesNotMatch(page, /Evidence package is being assembled/i);
   assert.match(evidenceGraph, /isGeneratingReport \? "running"/i);
@@ -60,8 +68,8 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /void sendInspection\(prompt, comparisonTargetName\)/);
   assert.match(page, /district_air_quality_history/i);
   assert.match(page, /api\/district-air-quality-history/i);
-  assert.match(page, /Open-Meteo CAMS daily district-coordinate estimates/i);
-  assert.match(page, /Monthly means calculated/i);
+  assert.doesNotMatch(page, /CAMS model estimate · not a ground sensor/i);
+  assert.doesNotMatch(page, /Monthly CAMS model averages · not ground-sensor data/i);
   assert.match(page, /monthlyHistoryAverages/i);
   assert.match(page, /HistoryLineChart/i);
   assert.match(historyLineChart, /Thirty-day.*location.*US AQI trend/i);

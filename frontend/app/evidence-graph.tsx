@@ -34,7 +34,6 @@ type GraphNode = {
   shortLabel: string;
   kind: NodeKind;
   detail: string;
-  unlock: string;
 };
 
 type Point = { x: number; y: number };
@@ -58,7 +57,6 @@ const nodes: GraphNode[] = [
     shortLabel: "AQ",
     kind: "source",
     detail: "City-wide measured AQI used as a comparison signal, not a district reading.",
-    unlock: "Source scope",
   },
   {
     id: "weather",
@@ -66,7 +64,6 @@ const nodes: GraphNode[] = [
     shortLabel: "WX",
     kind: "source",
     detail: "Wind, humidity, rain, and temperature provide transport context.",
-    unlock: "Freshness",
   },
   {
     id: "cams",
@@ -74,7 +71,6 @@ const nodes: GraphNode[] = [
     shortLabel: "CM",
     kind: "source",
     detail: "District-coordinate modeled pollutants and history, explicitly distinguished from sensors.",
-    unlock: "Data class",
   },
   {
     id: "traffic",
@@ -82,7 +78,6 @@ const nodes: GraphNode[] = [
     shortLabel: "TR",
     kind: "source",
     detail: "Representative road-flow context used to test—not prove—the traffic hypothesis.",
-    unlock: "Usage policy",
   },
   {
     id: "neon",
@@ -90,15 +85,13 @@ const nodes: GraphNode[] = [
     shortLabel: "DB",
     kind: "store",
     detail: "The bounded operational evidence package for the selected Hanoi district.",
-    unlock: "Queryable facts",
   },
   {
     id: "datahub",
     label: "DataHub context",
     shortLabel: "DH",
     kind: "datahub",
-    detail: "DataHub tells the agent what the evidence means, where it came from, and how it may be used.",
-    unlock: "Schema · lineage · quality",
+    detail: "Tells the agent what evidence means and where it came from.",
   },
   {
     id: "agent",
@@ -106,7 +99,6 @@ const nodes: GraphNode[] = [
     shortLabel: "AI",
     kind: "agent",
     detail: "Gemini selects from allowlisted tools and explains only verified, bounded facts.",
-    unlock: "Grounded reasoning",
   },
   {
     id: "report",
@@ -114,7 +106,6 @@ const nodes: GraphNode[] = [
     shortLabel: "RP",
     kind: "output",
     detail: "A source-aware report with ranked hypotheses, limitations, and data-quality notes.",
-    unlock: "Traceable insight",
   },
 ];
 
@@ -460,18 +451,10 @@ export default function EvidenceGraph({
 
       <article className={`graph-inspector ${selectedNode.kind}`} aria-live="polite">
         <div className="graph-inspector-heading">
-          <div>
-            <span>{selectedNode.kind === "datahub" ? "The DataHub unlock" : selectedNode.unlock}</span>
-            <strong>{selectedNode.label}</strong>
-          </div>
+          <strong>{selectedNode.label}</strong>
           <small className={`graph-state ${selectedStatus}`}>{statusLabel(selectedStatus)}</small>
         </div>
         <p>{selectedTrace?.summary ?? selectedNode.detail}</p>
-        {selectedNode.kind === "datahub" && (
-          <div className="unlock-list">
-            <span>Meaning</span><span>Lineage</span><span>Quality</span><span>Audit</span>
-          </div>
-        )}
       </article>
     </section>
   );
