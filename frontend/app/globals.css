@@ -1494,7 +1494,6 @@ tbody tr:last-child td {
   margin: 10px 0 0;
 }
 
-.agent-audit-card,
 .tool-trace-card {
   background: #f8f7e9;
   border: 1px solid #e4d89c;
@@ -1503,7 +1502,6 @@ tbody tr:last-child td {
   padding: 10px;
 }
 
-.agent-audit-card > span,
 .tool-trace-card > span {
   color: #725612;
   display: block;
@@ -1513,23 +1511,11 @@ tbody tr:last-child td {
   text-transform: uppercase;
 }
 
-.agent-audit-card > strong {
-  display: block;
-  font-size: 12px;
-  margin-top: 5px;
-}
-
-.agent-audit-card p,
-.agent-audit-card small,
 .tool-trace-card p,
 .tool-trace-card small {
   color: #665e42;
   font-size: 10px;
   line-height: 1.4;
-}
-
-.agent-audit-card p {
-  margin: 5px 0;
 }
 
 .tool-trace-card > div {

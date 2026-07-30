@@ -50,7 +50,9 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Click a district to prepare its AI inspection/i);
   assert.match(styles, /\.report-card/);
   assert.match(page, /Agent evidence trail/i);
-  assert.match(page, /Human review needed/i);
+  assert.doesNotMatch(page, /Human review needed/i);
+  assert.doesNotMatch(page, /Agent action/i);
+  assert.doesNotMatch(styles, /\.agent-audit-card/);
   assert.match(styles, /\.tool-trace-card/);
   assert.match(styles, /\.agent-processing-card/);
   assert.match(styles, /\.processing-loader/);

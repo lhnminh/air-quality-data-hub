@@ -55,12 +55,6 @@ type AgentToolTrace = {
   summary: string;
 };
 
-type SavedInvestigation = {
-  investigation_id: number;
-  status: string;
-  action: { action_type: string; status: string; description: string };
-};
-
 // Loading the map only in the browser keeps MapLibre away from server rendering.
 const districtMapModule = import("./district-map");
 const DistrictMap = dynamic(() => districtMapModule, { ssr: false });
@@ -259,8 +253,6 @@ export default function Home() {
   const [chatPrompt, setChatPrompt] = useState("");
   const [report, setReport] = useState<InvestigationReport | null>(null);
   const [toolTrace, setToolTrace] = useState<AgentToolTrace[]>([]);
-  const [savedInvestigation, setSavedInvestigation] =
-    useState<SavedInvestigation | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [processingStage, setProcessingStage] = useState(0);
   const [reportError, setReportError] = useState<string | null>(null);
@@ -376,7 +368,6 @@ export default function Home() {
     setChatPrompt(`Inspect ${districtName} air quality`);
     setReport(null);
     setToolTrace([]);
-    setSavedInvestigation(null);
     setReportError(null);
   }, []);
 
@@ -414,7 +405,6 @@ export default function Home() {
       const result = (await response.json()) as {
         report?: InvestigationReport;
         tool_trace?: AgentToolTrace[];
-        investigation?: SavedInvestigation;
         detail?: string;
       };
       if (!response.ok || !result.report) {
@@ -422,7 +412,6 @@ export default function Home() {
       }
       setReport(result.report);
       setToolTrace(result.tool_trace ?? []);
-      setSavedInvestigation(result.investigation ?? null);
     } catch (error) {
       setReportError(
         error instanceof Error ? error.message : "AirTrace could not generate a report.",
@@ -439,7 +428,6 @@ export default function Home() {
     setChatPrompt(prompt);
     setReport(null);
     setToolTrace([]);
-    setSavedInvestigation(null);
     setReportError(null);
     void sendInspection(prompt, comparisonTargetName);
   }, [comparisonTargetName, displayedLocation, isGeneratingReport, sendInspection]);
@@ -769,16 +757,6 @@ export default function Home() {
                 {report.ai_status && <p className="report-quality">{report.ai_status}</p>}
               </article>
             )}
-            {savedInvestigation && (
-              <article className="agent-audit-card">
-                <span>Agent action</span>
-                <strong>Human review needed</strong>
-                <p>{savedInvestigation.action.description}</p>
-                <small>
-                  Investigation #{savedInvestigation.investigation_id} · {savedInvestigation.status.replaceAll("_", " ")}
-                </small>
-              </article>
-            )}
             {toolTrace.length > 0 && (
               <article className="tool-trace-card">
                 <span>Agent evidence trail</span>
@@ -803,7 +781,6 @@ export default function Home() {
                 setChatPrompt(`Inspect ${displayedLocation} air quality`);
                 setReport(null);
                 setToolTrace([]);
-                setSavedInvestigation(null);
                 setReportError(null);
               }} disabled={isGeneratingReport}>
                 Inspect {displayedLocation} air quality
