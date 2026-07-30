@@ -239,6 +239,12 @@ function monthlyHistoryAverages(
     }));
 }
 
+function modeLabel(mode: DataMode) {
+  if (mode === "loading") return "Checking";
+  if (mode === "postgresql") return "Connected";
+  return "Sample data";
+}
+
 export default function Home() {
   const [observations, setObservations] = useState<AirObservation[]>([]);
   const [districtHistory, setDistrictHistory] = useState<
