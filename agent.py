@@ -572,6 +572,116 @@ def _apply_comparison(
     report["comparison_mode"] = True
 
 
+def _markdown_cell(value: Any) -> str:
+    """Keep report values readable inside a Markdown table cell."""
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
+
+
+def _format_investigation_document(
+    district_name: str,
+    prompt: str,
+    report: dict[str, Any],
+) -> str:
+    """Turn a structured investigation report into readable DataHub Markdown."""
+    title = report.get("title") or f"AirTrace investigation — {district_name}"
+    lines = [
+        f"# {title}",
+        "",
+        f"**District:** {district_name}",
+        "",
+        "**Investigation prompt:**",
+        "",
+        f"> {prompt.replace(chr(10), chr(10) + '> ')}",
+        "",
+        "## Summary",
+        "",
+        str(report.get("summary") or "No summary was generated."),
+    ]
+
+    metrics = report.get("numeric_summary")
+    if isinstance(metrics, list) and metrics:
+        lines.extend(
+            [
+                "",
+                "## Key metrics",
+                "",
+                "| Metric | Value | Source |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for metric in metrics:
+            if not isinstance(metric, dict):
+                continue
+            lines.append(
+                "| "
+                f"{_markdown_cell(metric.get('label', 'Metric'))} | "
+                f"{_markdown_cell(metric.get('value', 'Unavailable'))} | "
+                f"{_markdown_cell(metric.get('source', 'Unspecified'))} |"
+            )
+
+    causes = report.get("potential_causes")
+    if isinstance(causes, list) and causes:
+        lines.extend(["", "## Potential causes"])
+        for index, cause in enumerate(causes, start=1):
+            if not isinstance(cause, dict):
+                continue
+            lines.extend(
+                [
+                    "",
+                    f"### {index}. {cause.get('label', 'Unspecified cause')}",
+                    "",
+                    str(cause.get("detail") or "No details provided."),
+                ]
+            )
+
+    hypotheses = report.get("hypothesis_ranking")
+    if isinstance(hypotheses, list) and hypotheses:
+        lines.extend(["", "## Ranked hypotheses"])
+        for index, hypothesis in enumerate(hypotheses, start=1):
+            if not isinstance(hypothesis, dict):
+                continue
+            label = hypothesis.get("label", "Unspecified hypothesis")
+            score = hypothesis.get("score", "—")
+            lines.extend(["", f"### {index}. {label} — {score}/100"])
+            for heading, key in (
+                ("Supporting evidence", "supporting_evidence"),
+                ("Contradicting evidence", "contradicting_evidence"),
+            ):
+                evidence = hypothesis.get(key)
+                lines.extend(["", f"**{heading}:**"])
+                if isinstance(evidence, list) and evidence:
+                    lines.extend(f"- {item}" for item in evidence)
+                else:
+                    lines.append("- None recorded.")
+
+    if report.get("data_quality"):
+        lines.extend(
+            ["", "## Data quality and limitations", "", str(report["data_quality"])]
+        )
+    if report.get("comparison_note"):
+        lines.extend(["", "## Comparison note", "", str(report["comparison_note"])])
+    if report.get("assessment_method"):
+        lines.extend(["", "## Assessment method", "", str(report["assessment_method"])])
+
+    action = report.get("recommended_action")
+    if isinstance(action, dict):
+        approval = "Required" if action.get("requires_human_approval") else "Not required"
+        action_type = str(action.get("type", "unspecified")).replace("_", " ").title()
+        lines.extend(
+            [
+                "",
+                "## Recommended action",
+                "",
+                str(action.get("description") or "No action was recommended."),
+                "",
+                f"- **Action type:** {action_type}",
+                f"- **Human approval:** {approval}",
+            ]
+        )
+
+    return "\n".join(lines).strip() + "\n"
+
+
 def _fallback_agent_result(
     district_name: str,
     prompt: str,
@@ -597,7 +707,7 @@ def _fallback_agent_result(
         "requires_human_approval": True,
     }
     datahub_write = save_investigation_document(
-        f"District: {district_name}\nPrompt: {prompt}\nReport: {json.dumps(report, ensure_ascii=False)}",
+        _format_investigation_document(district_name, prompt, report),
         title=f"AirTrace investigation — {district_name}",
     )
     tool_trace.append(_trace_item("save_investigation_to_datahub", datahub_write))
@@ -863,7 +973,7 @@ only evidence that is actually returned by the allowed tools.
         )
 
     datahub_write = save_investigation_document(
-        f"District: {district_name}\nPrompt: {prompt}\nReport: {json.dumps(report, ensure_ascii=False)}",
+        _format_investigation_document(district_name, prompt, report),
         title=f"AirTrace investigation — {district_name}",
     )
     tool_trace.append(_trace_item("save_investigation_to_datahub", datahub_write))

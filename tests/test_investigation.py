@@ -29,6 +29,53 @@ def test_fallback_report_uses_only_available_evidence():
     assert report["potential_causes"][0]["label"] == "Cause not determined"
 
 
+def test_datahub_investigation_document_is_readable_markdown():
+    document = agent._format_investigation_document(
+        "Hai Ba Trung",
+        "Inspect Hai Ba Trung air quality",
+        {
+            "title": "Air Quality Assessment for Hai Ba Trung",
+            "summary": "Air quality is elevated under stagnant conditions.",
+            "numeric_summary": [
+                {
+                    "label": "Hai Ba Trung modelled US AQI",
+                    "value": "159",
+                    "source": "Open-Meteo CAMS model estimate",
+                }
+            ],
+            "potential_causes": [
+                {
+                    "label": "Stagnant-weather accumulation",
+                    "detail": "Low wind may limit dispersion.",
+                }
+            ],
+            "hypothesis_ranking": [
+                {
+                    "label": "Stagnant-weather accumulation",
+                    "score": 75,
+                    "supporting_evidence": ["Wind is low."],
+                    "contradicting_evidence": [],
+                }
+            ],
+            "data_quality": "CAMS values are model estimates.",
+            "assessment_method": "Transparent heuristic scores.",
+            "recommended_action": {
+                "type": "human_review",
+                "description": "Review the evidence.",
+                "requires_human_approval": True,
+            },
+        },
+    )
+
+    assert document.startswith("# Air Quality Assessment for Hai Ba Trung")
+    assert "**District:** Hai Ba Trung" in document
+    assert "## Key metrics" in document
+    assert "| Hai Ba Trung modelled US AQI | 159 | Open-Meteo CAMS model estimate |" in document
+    assert "## Ranked hypotheses" in document
+    assert "- **Human approval:** Required" in document
+    assert 'Report: {"title"' not in document
+
+
 def test_validated_report_discards_unstructured_model_items():
     report = investigation._validated_report(
         {
