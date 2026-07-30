@@ -12,6 +12,7 @@ import {
   type WeatherObservation,
 } from "./mock-data";
 import HistoryLineChart from "./history-line-chart";
+import EvidenceGraph from "./evidence-graph";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -236,12 +237,6 @@ function monthlyHistoryAverages(
         : null,
       sample_count: values.sampleDates.size,
     }));
-}
-
-function modeLabel(mode: DataMode) {
-  if (mode === "loading") return "Checking";
-  if (mode === "postgresql") return "Connected";
-  return "Sample data";
 }
 
 export default function Home() {
@@ -494,12 +489,12 @@ export default function Home() {
               <p className="eyebrow">AI workspace</p>
               <h1 id="ai-activity-title">Activity graph</h1>
             </div>
-            <span className="draft-badge">Draft</span>
+            <span className="draft-badge">Live trace</span>
           </div>
 
           <p className="panel-intro">
-            Trace the evidence used for an inspection before Gemini writes its
-            report.
+            Explore how DataHub turns raw feeds into the trusted context Gemini
+            uses to explain a report.
           </p>
 
           <ol className="activity-flow">
@@ -544,6 +539,15 @@ export default function Home() {
               latest data. It does not get direct database access.
             </p>
           </div>
+          <EvidenceGraph
+            districtName={displayedLocation}
+            dataMode={dataMode}
+            weatherMode={weatherMode}
+            modeledAirQualityMode={modeledAirQualityMode}
+            isGeneratingReport={isGeneratingReport}
+            reportReady={Boolean(report)}
+            toolTrace={toolTrace}
+          />
         </aside>
 
         <section className="center-column" aria-label="Map and historic air quality">
