@@ -511,13 +511,20 @@ h2 {
   stroke-width: 2.2;
 }
 
+.graph-edge .graph-edge-arrow-anchor {
+  pointer-events: none;
+  stroke: transparent;
+}
+
 .graph-edge .graph-edge-flow {
-  animation: graph-edge-flow 1.15s linear infinite;
+  animation: graph-edge-sweep 1.55s ease-in-out infinite;
+  fill: none;
+  filter: drop-shadow(0 0 2px rgba(200, 232, 96, 0.68));
   marker-end: none;
-  opacity: 0.9;
+  opacity: 0;
   pointer-events: none;
   stroke: var(--lime);
-  stroke-dasharray: 3 9;
+  stroke-dasharray: 0.16 0.84;
   stroke-linecap: round;
   stroke-width: 4;
 }
@@ -816,12 +823,19 @@ h2 {
   }
 }
 
-@keyframes graph-edge-flow {
-  from {
-    stroke-dashoffset: 24;
+@keyframes graph-edge-sweep {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 1;
   }
 
-  to {
+  18%,
+  82% {
+    opacity: 0.92;
+  }
+
+  100% {
+    opacity: 0;
     stroke-dashoffset: 0;
   }
 }

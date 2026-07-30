@@ -358,23 +358,34 @@ export default function EvidenceGraph({
                 y: end.y - (deltaY / distance) * targetOffset,
               };
               const isConnected = edge.source === selectedNodeId || edge.target === selectedNodeId;
+              const arrowGap = isConnected ? 19 : 12;
+              const visibleLineEnd = {
+                x: lineEnd.x - (deltaX / distance) * arrowGap,
+                y: lineEnd.y - (deltaY / distance) * arrowGap,
+              };
+              const flowPath = `M${lineStart.x},${lineStart.y} L${visibleLineEnd.x},${visibleLineEnd.y}`;
               return (
                 <g className={`graph-edge ${isConnected ? "connected" : ""}`} key={`${edge.source}-${edge.target}`}>
                   <line
                     className="graph-edge-base"
                     x1={lineStart.x}
                     y1={lineStart.y}
+                    x2={visibleLineEnd.x}
+                    y2={visibleLineEnd.y}
+                  />
+                  <line
+                    className="graph-edge-arrow-anchor"
+                    x1={visibleLineEnd.x}
+                    y1={visibleLineEnd.y}
                     x2={lineEnd.x}
                     y2={lineEnd.y}
                     markerEnd={isConnected ? "url(#graph-arrow-active)" : "url(#graph-arrow)"}
                   />
                   {isConnected && (
-                    <line
+                    <path
                       className="graph-edge-flow"
-                      x1={lineStart.x}
-                      y1={lineStart.y}
-                      x2={lineEnd.x}
-                      y2={lineEnd.y}
+                      d={flowPath}
+                      pathLength="1"
                     />
                   )}
                   {isConnected && !edge.hideLabel && (

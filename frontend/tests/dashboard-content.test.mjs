@@ -24,6 +24,7 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(evidenceGraph, /Schema · lineage · quality/i);
   assert.match(evidenceGraph, /Drag nodes · scroll to zoom/i);
   assert.match(evidenceGraph, /graph-arrow-active/i);
+  assert.match(styles, /graph-edge-sweep/i);
   assert.match(styles, /graph-edge-flow/i);
   assert.match(evidenceGraph, /Expand graph/i);
   assert.match(evidenceGraph, /How DataHub unlocks the report/i);
