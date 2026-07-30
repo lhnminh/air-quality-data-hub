@@ -14,7 +14,8 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   ]);
 
   assert.match(layout, /AirTrace Vietnam/i);
-  assert.match(page, /Hanoi air-quality operations/i);
+  assert.doesNotMatch(page, /Hanoi air-quality operations/i);
+  assert.doesNotMatch(page, /Monitor · investigate · explain/i);
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
   assert.doesNotMatch(

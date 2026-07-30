@@ -443,11 +443,6 @@ export default function Home() {
           </span>
         </a>
 
-        <div className="workspace-title">
-          <span>Hanoi air-quality operations</span>
-          <small>Monitor · investigate · explain</small>
-        </div>
-
         <div className="header-actions">
           <div className={`data-status ${dataMode}`}>
             <span className="status-dot" />
