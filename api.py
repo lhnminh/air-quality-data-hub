@@ -34,6 +34,7 @@ app.add_middleware(
 class InvestigationRequest(BaseModel):
     district_name: str
     prompt: str = Field(min_length=1, max_length=500)
+    comparison_district_name: str | None = Field(default=None, max_length=100)
 
 
 @app.get("/api/health")
@@ -140,6 +141,16 @@ def investigate_district(request: InvestigationRequest) -> dict:
     district_names = {district["name"] for district in DISTRICTS}
     if request.district_name not in district_names:
         raise HTTPException(status_code=404, detail="Unknown Hanoi pilot district")
+    if (
+        request.comparison_district_name
+        and request.comparison_district_name not in district_names
+    ):
+        raise HTTPException(status_code=404, detail="Unknown comparison district")
+    if request.comparison_district_name == request.district_name:
+        raise HTTPException(
+            status_code=422,
+            detail="Choose a different district to compare",
+        )
 
     context = get_district_investigation_context(request.district_name)
     if not context:
@@ -148,7 +159,11 @@ def investigate_district(request: InvestigationRequest) -> dict:
             detail="No investigation data is available for this district yet",
         )
 
-    agent_result = run_district_agent(request.district_name, request.prompt)
+    agent_result = run_district_agent(
+        request.district_name,
+        request.prompt,
+        request.comparison_district_name,
+    )
     return {
         "district_name": request.district_name,
         "prompt": request.prompt,

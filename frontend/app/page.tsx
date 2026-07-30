@@ -45,6 +45,8 @@ type InvestigationReport = {
     contradicting_evidence: string[];
   }>;
   assessment_method?: string;
+  comparison_note?: string;
+  comparison_mode?: boolean;
 };
 
 type AgentToolTrace = {
@@ -251,6 +253,8 @@ export default function Home() {
   const [historyMode, setHistoryMode] = useState<HistoryMode>("loading");
   const [historyDays, setHistoryDays] = useState<HistoryDays>(30);
   const [selectedDistrictName, setSelectedDistrictName] = useState("Hoan Kiem");
+  const [comparisonDistrictName, setComparisonDistrictName] = useState<string | null>(null);
+  const [comparisonTargetName, setComparisonTargetName] = useState("");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chatPrompt, setChatPrompt] = useState("");
   const [report, setReport] = useState<InvestigationReport | null>(null);
@@ -258,6 +262,7 @@ export default function Home() {
   const [savedInvestigation, setSavedInvestigation] =
     useState<SavedInvestigation | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [processingStage, setProcessingStage] = useState(0);
   const [reportError, setReportError] = useState<string | null>(null);
 
   const applyResults = useCallback(
@@ -365,6 +370,8 @@ export default function Home() {
 
   const selectDistrictForInspection = useCallback((districtName: string) => {
     setSelectedDistrictName(districtName);
+    setComparisonDistrictName(null);
+    setComparisonTargetName("");
     setHistoryMode("loading");
     setChatPrompt(`Inspect ${districtName} air quality`);
     setReport(null);
@@ -373,17 +380,36 @@ export default function Home() {
     setReportError(null);
   }, []);
 
-  const sendInspection = useCallback(async () => {
-    const prompt = chatPrompt.trim();
+  useEffect(() => {
+    if (!isGeneratingReport) return;
+    const interval = window.setInterval(() => {
+      setProcessingStage((stage) => (stage + 1) % 5);
+    }, 1100);
+    return () => window.clearInterval(interval);
+  }, [isGeneratingReport]);
+
+  const sendInspection = useCallback(async (
+    promptOverride?: string,
+    comparisonOverride?: string | null,
+  ) => {
+    const prompt = (promptOverride ?? chatPrompt).trim();
+    const activeComparison = comparisonOverride === undefined
+      ? comparisonDistrictName
+      : comparisonOverride;
     if (!prompt || isGeneratingReport) return;
 
+    setProcessingStage(0);
     setIsGeneratingReport(true);
     setReportError(null);
     try {
       const response = await fetch(`${apiUrl}/api/investigate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ district_name: selectedDistrictName, prompt }),
+        body: JSON.stringify({
+          district_name: selectedDistrictName,
+          comparison_district_name: activeComparison,
+          prompt,
+        }),
       });
       const result = (await response.json()) as {
         report?: InvestigationReport;
@@ -404,7 +430,19 @@ export default function Home() {
     } finally {
       setIsGeneratingReport(false);
     }
-  }, [chatPrompt, isGeneratingReport, selectedDistrictName]);
+  }, [chatPrompt, comparisonDistrictName, isGeneratingReport, selectedDistrictName]);
+
+  const prepareComparison = useCallback(() => {
+    if (!comparisonTargetName || isGeneratingReport) return;
+    const prompt = `Compare ${displayedLocation} air quality with ${comparisonTargetName}`;
+    setComparisonDistrictName(comparisonTargetName);
+    setChatPrompt(prompt);
+    setReport(null);
+    setToolTrace([]);
+    setSavedInvestigation(null);
+    setReportError(null);
+    void sendInspection(prompt, comparisonTargetName);
+  }, [comparisonTargetName, displayedLocation, isGeneratingReport, sendInspection]);
 
   return (
     <main className="app-shell" id="top">
@@ -459,6 +497,48 @@ export default function Home() {
             uses to explain a report.
           </p>
 
+          <ol className="activity-flow">
+            <li className={dataMode === "loading" ? "active" : "complete"}>
+              <span className="flow-node" />
+              <div>
+                <strong>Read air-quality feed</strong>
+                <small>{modeLabel(dataMode)} · IQAir observations</small>
+              </div>
+            </li>
+            <li className={weatherMode === "loading" ? "active" : "complete"}>
+              <span className="flow-node" />
+              <div>
+                <strong>Check weather and wind</strong>
+                <small>{modeLabel(weatherMode)} · Open-Meteo</small>
+              </div>
+            </li>
+            <li
+              className={
+                modeledAirQualityMode === "loading" ? "active" : "complete"
+              }
+            >
+              <span className="flow-node" />
+              <div>
+                <strong>Compare pollutant signals</strong>
+                <small>{modeLabel(modeledAirQualityMode)} · CAMS model</small>
+              </div>
+            </li>
+            <li className={isGeneratingReport ? "active" : "planned"}>
+              <span className="flow-node" />
+              <div>
+                <strong>Build a bounded report</strong>
+                <small>{isGeneratingReport ? "Evidence package is being assembled" : "Ready when you send an inspection"}</small>
+              </div>
+            </li>
+          </ol>
+
+          <div className="draft-note">
+            <strong>Evidence-first reporting</strong>
+            <p>
+              Gemini receives a limited package of the selected district&apos;s
+              latest data. It does not get direct database access.
+            </p>
+          </div>
           <EvidenceGraph
             districtName={displayedLocation}
             dataMode={dataMode}
@@ -619,7 +699,7 @@ export default function Home() {
           </article>
         </section>
 
-        <aside className="workspace-panel chat-panel" aria-labelledby="chat-title">
+        <aside className={`workspace-panel chat-panel ${report || isGeneratingReport ? "has-active-report" : ""}`} aria-labelledby="chat-title">
           <div className="panel-heading">
             <div>
               <p className="eyebrow">AirTrace assistant</p>
@@ -637,12 +717,39 @@ export default function Home() {
           </div>
 
           <div className="chat-thread" aria-label="AirTrace investigation report">
-            <div className="chat-message assistant-message">
-              <span>Selected district</span>
-              <p>
-                {chatPrompt || `Click ${displayedLocation} on the map to prepare an inspection.`}
-              </p>
-            </div>
+            {!report && !isGeneratingReport && (
+              <div className="chat-message assistant-message">
+                <span>Selected district</span>
+                <p>
+                  {chatPrompt || `Click ${displayedLocation} on the map to prepare an inspection.`}
+                </p>
+              </div>
+            )}
+            {isGeneratingReport && (
+              <article className="agent-processing-card" aria-live="polite">
+                <div className="processing-loader" aria-hidden="true" />
+                <div>
+                  <span>AirTrace investigation in progress</span>
+                  <strong>
+                    {[
+                      "Checking DataHub source contracts",
+                      "Reading district air and pollutant evidence",
+                      "Checking weather, wind, and dispersion context",
+                      "Comparing TomTom traffic conditions",
+                      comparisonDistrictName
+                        ? `Comparing ${displayedLocation} with ${comparisonDistrictName}`
+                        : "Writing a cautious evidence-backed report",
+                    ][processingStage]}
+                  </strong>
+                  <p>Gemini receives only the verified evidence package, never direct database access.</p>
+                </div>
+                <div className="processing-steps" aria-hidden="true">
+                  {[0, 1, 2, 3, 4].map((stage) => (
+                    <i key={stage} className={stage <= processingStage ? "done" : ""} />
+                  ))}
+                </div>
+              </article>
+            )}
             {report && (
               <article className="report-card">
                 <span>AirTrace report</span>
@@ -657,13 +764,25 @@ export default function Home() {
                     </div>
                   ))}
                 </dl>
-                <div className="report-causes">
-                  <strong>Potential cause analysis</strong>
-                  {report.potential_causes.map((cause) => (
-                    <p key={`${cause.label}-${cause.detail}`}><b>{cause.label}:</b> {cause.detail}</p>
-                  ))}
-                </div>
-                {report.hypothesis_ranking && (
+                {!report.comparison_mode && (
+                  <div className="report-causes">
+                    <strong>Potential cause analysis</strong>
+                    {report.potential_causes.map((cause) => (
+                      <p key={`${cause.label}-${cause.detail}`}><b>{cause.label}:</b> {cause.detail}</p>
+                    ))}
+                  </div>
+                )}
+                {report.comparison_mode && report.potential_causes.length > 0 && (
+                  <div className="comparison-analysis">
+                    <strong>What the evidence suggests</strong>
+                    {report.potential_causes.map((interpretation) => (
+                      <p key={`${interpretation.label}-${interpretation.detail}`}>
+                        <b>{interpretation.label}:</b> {interpretation.detail}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {!report.comparison_mode && report.hypothesis_ranking && (
                   <div className="hypothesis-ranking">
                     <strong>Evidence ranking</strong>
                     <small>{report.assessment_method}</small>
@@ -683,7 +802,10 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-                <p className="report-quality">{report.data_quality}</p>
+                {!report.comparison_mode && <p className="report-quality">{report.data_quality}</p>}
+                {report.comparison_note && (
+                  <p className="report-quality comparison-note">{report.comparison_note}</p>
+                )}
                 {report.ai_status && <p className="report-quality">{report.ai_status}</p>}
               </article>
             )}
@@ -712,12 +834,54 @@ export default function Home() {
             {reportError && <p className="report-error">{reportError}</p>}
           </div>
 
-          <div className="suggested-prompts">
-            <span>Suggested prompt</span>
-            <button type="button" onClick={() => setChatPrompt(`Inspect ${displayedLocation} air quality`)}>
-              Inspect {displayedLocation} air quality
-            </button>
-          </div>
+          <details className="agent-tasks" open={!report && !isGeneratingReport}>
+            <summary>Try an agent task</summary>
+            <div className="suggested-prompts">
+              <button type="button" onClick={() => {
+                setComparisonDistrictName(null);
+                setComparisonTargetName("");
+                setChatPrompt(`Inspect ${displayedLocation} air quality`);
+                setReport(null);
+                setToolTrace([]);
+                setSavedInvestigation(null);
+                setReportError(null);
+              }} disabled={isGeneratingReport}>
+                Inspect {displayedLocation} air quality
+              </button>
+              <div className="comparison-picker">
+                <label htmlFor="comparison-district">Compare {displayedLocation} with</label>
+                <div>
+                  <select
+                    id="comparison-district"
+                    value={comparisonTargetName}
+                    onChange={(event) => {
+                      setComparisonTargetName(event.target.value);
+                      setComparisonDistrictName(null);
+                    }}
+                    disabled={isGeneratingReport}
+                  >
+                    <option value="">Choose another district</option>
+                    {districtStatuses
+                      .filter((district) => district.district_name !== displayedLocation)
+                      .map((district) => (
+                        <option key={district.district_name} value={district.district_name}>
+                          {district.district_name}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    type="button"
+                    className={`comparison-prompt ${comparisonDistrictName ? "selected" : ""}`}
+                    onClick={prepareComparison}
+                    disabled={!comparisonTargetName || isGeneratingReport}
+                  >
+                    Compare districts
+                  </button>
+                </div>
+                <small>Uses the same CAMS, IQAir, weather, traffic, and DataHub context for both districts.</small>
+              </div>
+            </div>
+          </details>
 
           <div className="chat-composer">
             <label htmlFor="chat-input">Ask AirTrace</label>
@@ -727,7 +891,10 @@ export default function Home() {
                 type="text"
                 placeholder="Click a district to prepare an inspection"
                 value={chatPrompt}
-                onChange={(event) => setChatPrompt(event.target.value)}
+                onChange={(event) => {
+                  setComparisonDistrictName(null);
+                  setChatPrompt(event.target.value);
+                }}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") void sendInspection();
                 }}
