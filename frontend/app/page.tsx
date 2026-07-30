@@ -239,12 +239,6 @@ function monthlyHistoryAverages(
     }));
 }
 
-function modeLabel(mode: DataMode) {
-  if (mode === "loading") return "Checking";
-  if (mode === "postgresql") return "Connected";
-  return "Sample data";
-}
-
 export default function Home() {
   const [observations, setObservations] = useState<AirObservation[]>([]);
   const [districtHistory, setDistrictHistory] = useState<
@@ -497,46 +491,6 @@ export default function Home() {
             </div>
             <span className="draft-badge">Live trace</span>
           </div>
-
-          <p className="panel-intro">
-            Explore how DataHub turns raw feeds into the trusted context Gemini
-            uses to explain a report.
-          </p>
-
-          <ol className="activity-flow">
-            <li className={dataMode === "loading" ? "active" : "complete"}>
-              <span className="flow-node" />
-              <div>
-                <strong>Read air-quality feed</strong>
-                <small>{modeLabel(dataMode)} · IQAir observations</small>
-              </div>
-            </li>
-            <li className={weatherMode === "loading" ? "active" : "complete"}>
-              <span className="flow-node" />
-              <div>
-                <strong>Check weather and wind</strong>
-                <small>{modeLabel(weatherMode)} · Open-Meteo</small>
-              </div>
-            </li>
-            <li
-              className={
-                modeledAirQualityMode === "loading" ? "active" : "complete"
-              }
-            >
-              <span className="flow-node" />
-              <div>
-                <strong>Compare pollutant signals</strong>
-                <small>{modeLabel(modeledAirQualityMode)} · CAMS model</small>
-              </div>
-            </li>
-            <li className={isGeneratingReport ? "active" : "planned"}>
-              <span className="flow-node" />
-              <div>
-                <strong>Build a bounded report</strong>
-                <small>{isGeneratingReport ? "Evidence package is being assembled" : "Ready when you send an inspection"}</small>
-              </div>
-            </li>
-          </ol>
 
           <div className="draft-note">
             <strong>Evidence-first reporting</strong>

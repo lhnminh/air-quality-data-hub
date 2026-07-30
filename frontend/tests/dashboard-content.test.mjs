@@ -17,7 +17,11 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Hanoi air-quality operations/i);
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
-  assert.match(page, /DataHub turns raw feeds into the trusted context/i);
+  assert.doesNotMatch(page, /DataHub turns raw feeds into the trusted context/i);
+  assert.doesNotMatch(
+    page,
+    /Read air-quality feed|Check weather and wind|Compare pollutant signals|Build a bounded report/i,
+  );
   assert.doesNotMatch(page, /From data to defensible action/i);
   assert.match(evidenceGraph, /Interactive agent evidence graph/i);
   assert.match(evidenceGraph, /The DataHub unlock/i);
@@ -33,7 +37,7 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /displayedLocation.*historical AQI/i);
   assert.match(page, /Ask about the air/i);
   assert.match(page, /api\/investigate/i);
-  assert.match(page, /Evidence package is being assembled/i);
+  assert.doesNotMatch(page, /Evidence package is being assembled/i);
   assert.match(evidenceGraph, /isGeneratingReport \? "running"/i);
   assert.doesNotMatch(page, /Gemini is thinking/i);
   assert.match(page, /AirTrace investigation in progress/i);
