@@ -108,7 +108,7 @@ def _validated_report(value: Any, context: dict[str, Any]) -> dict[str, Any]:
         "title": value["title"],
         "summary": value["summary"],
         # The agent selects fact IDs; agent.py maps them to trusted values and
-        # sources from Neon. Never render Gemini-generated numeric claims.
+        # sources from the database. Never render Gemini-generated numeric claims.
         "selected_fact_ids": selected_fact_ids[:8],
         "numeric_summary": [],
         "potential_causes": causes,

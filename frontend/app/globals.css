@@ -203,16 +203,6 @@ input:disabled {
   margin-top: 10px;
 }
 
-.chat-panel.has-active-report .suggested-prompts {
-  gap: 5px;
-  margin-top: 10px;
-}
-
-.chat-panel.has-active-report .comparison-picker {
-  gap: 5px;
-  padding: 7px;
-}
-
 .center-column {
   display: grid;
   gap: 12px;
@@ -225,6 +215,15 @@ input:disabled {
   display: flex;
   gap: 12px;
   justify-content: space-between;
+}
+
+.eyebrow {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  margin: 0 0 7px;
+  text-transform: uppercase;
 }
 
 h1,
@@ -1434,135 +1433,13 @@ tbody tr:last-child td {
   color: var(--muted);
 }
 
-.suggested-prompts {
-  display: grid;
-  gap: 7px;
-  margin-top: 20px;
-}
-
-.agent-tasks,
-.suggested-prompts,
 .chat-composer {
   flex: 0 0 auto;
-}
-
-.agent-tasks {
-  border-top: 1px solid var(--line);
-  margin-top: 10px;
-  padding-top: 9px;
-}
-
-.agent-tasks summary {
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.07em;
-  list-style: none;
-  text-transform: uppercase;
-}
-
-.agent-tasks summary::-webkit-details-marker {
-  display: none;
-}
-
-.agent-tasks summary::after {
-  content: "+";
-  float: right;
-  font-size: 14px;
-  line-height: 8px;
-}
-
-.agent-tasks[open] summary {
-  margin-bottom: 7px;
-}
-
-.agent-tasks[open] summary::after {
-  content: "−";
-}
-
-.suggested-prompts button {
-  background: #edf1e9;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  color: var(--muted);
-  font-size: 11px;
-  padding: 9px 10px;
-  text-align: left;
-}
-
-.suggested-prompts button:hover {
-  border-color: #a9c2af;
-  color: var(--green);
-  cursor: pointer;
-}
-
-.comparison-picker {
-  background: #f7f8f4;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  display: grid;
-  gap: 7px;
-  padding: 9px;
-}
-
-.comparison-picker label {
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.comparison-picker > div {
-  display: grid;
-  gap: 6px;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.comparison-picker select {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--ink);
-  font: inherit;
-  font-size: 11px;
-  min-width: 0;
-  padding: 8px;
-}
-
-.comparison-picker small {
-  color: var(--muted);
-  font-size: 9px;
-  line-height: 1.35;
-}
-
-.suggested-prompts .comparison-prompt {
-  background: var(--card);
-  color: var(--muted);
-  white-space: nowrap;
-}
-
-.suggested-prompts .comparison-prompt.selected {
-  background: #eaf3e2;
-  border-color: #bad8ab;
-  color: var(--green);
-}
-
-.suggested-prompts button:disabled,
-.comparison-picker select:disabled {
-  cursor: wait;
-  opacity: 0.55;
 }
 
 .chat-composer {
   margin-top: auto;
   padding-top: 9px;
-}
-
-.chat-composer label {
-  display: block;
-  font-size: 11px;
-  font-weight: 800;
-  margin-bottom: 8px;
 }
 
 .chat-composer > div {
@@ -1581,7 +1458,7 @@ tbody tr:last-child td {
   width: 100%;
 }
 
-.chat-composer button {
+.chat-composer > div button {
   background: var(--ink);
   border: 0;
   border-radius: 10px;
@@ -1589,15 +1466,26 @@ tbody tr:last-child td {
 }
 
 .chat-composer input:disabled,
-.chat-composer button:disabled {
+.chat-composer > div button:disabled {
   opacity: 0.55;
 }
 
-.chat-composer > small {
-  color: var(--muted);
-  display: block;
-  font-size: 9px;
-  margin-top: 7px;
+.comparison-suggestion {
+  background: #edf1e9;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--green);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  margin-bottom: 8px;
+  padding: 8px 11px;
+  text-align: left;
+}
+
+.comparison-suggestion:hover {
+  background: #e5ecdf;
+  border-color: #a9c2af;
 }
 
 @keyframes pulse {
@@ -1646,8 +1534,7 @@ tbody tr:last-child td {
     grid-template-columns: 1fr;
   }
 
-  .chat-thread,
-  .suggested-prompts {
+  .chat-thread {
     grid-template-columns: 1fr;
   }
 

@@ -18,11 +18,11 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.doesNotMatch(page, /Monitor · investigate · explain/i);
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
-  assert.doesNotMatch(
-    page,
-    /AI workspace|Current conditions|Daily history from Neon|AirTrace assistant/i,
-  );
-  assert.doesNotMatch(styles, /\.eyebrow/);
+  assert.match(page, /AI workspace/i);
+  assert.match(page, /Current conditions/i);
+  assert.match(page, /Daily history from database/i);
+  assert.match(page, /AirTrace assistant/i);
+  assert.match(styles, /\.eyebrow/);
   assert.doesNotMatch(page, /DataHub turns raw feeds into the trusted context/i);
   assert.doesNotMatch(
     page,
@@ -30,6 +30,13 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   );
   assert.doesNotMatch(page, /From data to defensible action/i);
   assert.match(evidenceGraph, /Interactive agent evidence graph/i);
+  assert.match(evidenceGraph, /label: "Air quality"/i);
+  assert.match(evidenceGraph, /label: "Weather"/i);
+  assert.match(evidenceGraph, /label: "Pollutant model"/i);
+  assert.match(evidenceGraph, /label: "Traffic"/i);
+  assert.match(evidenceGraph, /label: "Database"/i);
+  assert.match(evidenceGraph, /label: "DataHub"/i);
+  assert.doesNotMatch(`${page}\n${evidenceGraph}`, /Neon/i);
   assert.doesNotMatch(page, /Evidence-first reporting/i);
   assert.doesNotMatch(evidenceGraph, /The DataHub unlock/i);
   assert.doesNotMatch(evidenceGraph, /Schema · lineage · quality/i);
@@ -44,18 +51,21 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(page, /Hanoi district map/i);
   assert.match(page, /displayedLocation.*historical AQI/i);
   assert.match(page, /Ask about the air/i);
+  assert.match(page, /Selected district/i);
+  assert.match(page, /Click \$\{displayedLocation\} on the map to prepare an inspection/i);
   assert.doesNotMatch(page, /Click a district to prepare a prompt, then send it/i);
   assert.match(page, /api\/investigate/i);
   assert.doesNotMatch(page, /Evidence package is being assembled/i);
   assert.match(evidenceGraph, /isGeneratingReport \? "running"/i);
   assert.doesNotMatch(page, /Gemini is thinking/i);
   assert.match(page, /AirTrace investigation in progress/i);
-  assert.match(page, /comparison-picker/i);
-  assert.match(page, /Compare districts/i);
-  assert.match(page, /agent-tasks/i);
+  assert.doesNotMatch(page, /comparison-picker/i);
+  assert.match(page, /comparison-suggestion/i);
+  assert.match(page, /Compare \{displayedLocation\} with \{comparisonSuggestionTarget\}/i);
+  assert.doesNotMatch(page, /agent-tasks/i);
   assert.match(page, /What the evidence suggests/i);
   assert.match(page, /comparison_district_name/i);
-  assert.match(page, /Gemini receives only the selected district/i);
+  assert.doesNotMatch(page, /Gemini receives only the selected district/i);
   assert.match(page, /Click a district to prepare its AI inspection/i);
   assert.match(styles, /\.report-card/);
   assert.match(page, /Agent evidence trail/i);
@@ -65,8 +75,10 @@ test("contains the four-panel AirTrace workspace and Gemini inspection flow", as
   assert.match(styles, /\.tool-trace-card/);
   assert.match(styles, /\.agent-processing-card/);
   assert.match(styles, /\.processing-loader/);
-  assert.match(styles, /\.agent-tasks/);
-  assert.match(page, /void sendInspection\(prompt, comparisonTargetName\)/);
+  assert.doesNotMatch(styles, /\.agent-tasks/);
+  assert.doesNotMatch(page, /void sendInspection\(prompt, comparisonSuggestionTarget\)/);
+  assert.match(page, /setChatPrompt\(`Inspect \$\{districtName\} air quality`\)/);
+  assert.match(page, /prepareComparisonSuggestion/i);
   assert.match(page, /district_air_quality_history/i);
   assert.match(page, /api\/district-air-quality-history/i);
   assert.doesNotMatch(page, /CAMS model estimate · not a ground sensor/i);

@@ -248,7 +248,7 @@ export default function Home() {
   const [historyDays, setHistoryDays] = useState<HistoryDays>(30);
   const [selectedDistrictName, setSelectedDistrictName] = useState("Hoan Kiem");
   const [comparisonDistrictName, setComparisonDistrictName] = useState<string | null>(null);
-  const [comparisonTargetName, setComparisonTargetName] = useState("");
+  const [showComparisonSuggestion, setShowComparisonSuggestion] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chatPrompt, setChatPrompt] = useState("");
   const [report, setReport] = useState<InvestigationReport | null>(null);
@@ -334,6 +334,9 @@ export default function Home() {
     (district) => district.district_name === selectedDistrictName,
   );
   const displayedLocation = selectedDistrict?.district_name ?? selectedDistrictName;
+  const comparisonSuggestionTarget = districtStatuses.find(
+    (district) => district.district_name !== displayedLocation,
+  )?.district_name;
   const isMonthlyHistory = historyDays === 365;
   const displayedHistory = useMemo<HistoryDisplayObservation[]>(
     () =>
@@ -363,7 +366,7 @@ export default function Home() {
   const selectDistrictForInspection = useCallback((districtName: string) => {
     setSelectedDistrictName(districtName);
     setComparisonDistrictName(null);
-    setComparisonTargetName("");
+    setShowComparisonSuggestion(true);
     setHistoryMode("loading");
     setChatPrompt(`Inspect ${districtName} air quality`);
     setReport(null);
@@ -389,6 +392,7 @@ export default function Home() {
       : comparisonOverride;
     if (!prompt || isGeneratingReport) return;
 
+    setShowComparisonSuggestion(false);
     setProcessingStage(0);
     setIsGeneratingReport(true);
     setReportError(null);
@@ -421,16 +425,16 @@ export default function Home() {
     }
   }, [chatPrompt, comparisonDistrictName, isGeneratingReport, selectedDistrictName]);
 
-  const prepareComparison = useCallback(() => {
-    if (!comparisonTargetName || isGeneratingReport) return;
-    const prompt = `Compare ${displayedLocation} air quality with ${comparisonTargetName}`;
-    setComparisonDistrictName(comparisonTargetName);
+  const prepareComparisonSuggestion = useCallback(() => {
+    if (!comparisonSuggestionTarget || isGeneratingReport) return;
+    const prompt = `Compare ${displayedLocation} air quality with ${comparisonSuggestionTarget}`;
+    setComparisonDistrictName(comparisonSuggestionTarget);
+    setShowComparisonSuggestion(false);
     setChatPrompt(prompt);
     setReport(null);
     setToolTrace([]);
     setReportError(null);
-    void sendInspection(prompt, comparisonTargetName);
-  }, [comparisonTargetName, displayedLocation, isGeneratingReport, sendInspection]);
+  }, [comparisonSuggestionTarget, displayedLocation, isGeneratingReport]);
 
   return (
     <main className="app-shell" id="top">
@@ -469,6 +473,7 @@ export default function Home() {
         <aside className="workspace-panel ai-panel" aria-labelledby="ai-activity-title">
           <div className="panel-heading">
             <div>
+              <p className="eyebrow">AI workspace</p>
               <h1 id="ai-activity-title">Activity graph</h1>
             </div>
             <span className="draft-badge">Live trace</span>
@@ -489,6 +494,7 @@ export default function Home() {
           <article className="workspace-panel map-panel" aria-labelledby="map-title">
             <div className="panel-heading map-heading">
               <div>
+                <p className="eyebrow">Current conditions</p>
                 <h2 id="map-title">Hanoi district map</h2>
               </div>
               <span className={`source-badge ${districtMode}`}>
@@ -520,6 +526,7 @@ export default function Home() {
           <article className="workspace-panel history-panel" aria-labelledby="history-title">
             <div className="panel-heading history-heading">
               <div>
+                <p className="eyebrow">Daily history from database</p>
                 <h2 id="history-title">{displayedLocation} historical AQI</h2>
               </div>
               <div className="history-actions" aria-label="History range">
@@ -618,7 +625,7 @@ export default function Home() {
                   ? isMonthlyHistory
                     ? `${displayedHistory.length} monthly means from ${districtHistory.length} daily records`
                     : `${districtHistory.length} daily records loaded`
-                  : "Awaiting Neon import"}
+                  : "Awaiting database import"}
               </span>
             </div>
           </article>
@@ -627,6 +634,7 @@ export default function Home() {
         <aside className={`workspace-panel chat-panel ${report || isGeneratingReport ? "has-active-report" : ""}`} aria-labelledby="chat-title">
           <div className="panel-heading">
             <div>
+              <p className="eyebrow">AirTrace assistant</p>
               <h2 id="chat-title">Ask about the air</h2>
             </div>
             <span className="source-badge">Gemini</span>
@@ -740,64 +748,26 @@ export default function Home() {
             {reportError && <p className="report-error">{reportError}</p>}
           </div>
 
-          <details className="agent-tasks" open={!report && !isGeneratingReport}>
-            <summary>Try an agent task</summary>
-            <div className="suggested-prompts">
-              <button type="button" onClick={() => {
-                setComparisonDistrictName(null);
-                setComparisonTargetName("");
-                setChatPrompt(`Inspect ${displayedLocation} air quality`);
-                setReport(null);
-                setToolTrace([]);
-                setReportError(null);
-              }} disabled={isGeneratingReport}>
-                Inspect {displayedLocation} air quality
-              </button>
-              <div className="comparison-picker">
-                <label htmlFor="comparison-district">Compare {displayedLocation} with</label>
-                <div>
-                  <select
-                    id="comparison-district"
-                    value={comparisonTargetName}
-                    onChange={(event) => {
-                      setComparisonTargetName(event.target.value);
-                      setComparisonDistrictName(null);
-                    }}
-                    disabled={isGeneratingReport}
-                  >
-                    <option value="">Choose another district</option>
-                    {districtStatuses
-                      .filter((district) => district.district_name !== displayedLocation)
-                      .map((district) => (
-                        <option key={district.district_name} value={district.district_name}>
-                          {district.district_name}
-                        </option>
-                      ))}
-                  </select>
-                  <button
-                    type="button"
-                    className={`comparison-prompt ${comparisonDistrictName ? "selected" : ""}`}
-                    onClick={prepareComparison}
-                    disabled={!comparisonTargetName || isGeneratingReport}
-                  >
-                    Compare districts
-                  </button>
-                </div>
-                <small>Uses the same CAMS, IQAir, weather, traffic, and DataHub context for both districts.</small>
-              </div>
-            </div>
-          </details>
-
           <div className="chat-composer">
-            <label htmlFor="chat-input">Ask AirTrace</label>
+            {showComparisonSuggestion && comparisonSuggestionTarget && !isGeneratingReport && (
+              <button
+                className="comparison-suggestion"
+                type="button"
+                onClick={prepareComparisonSuggestion}
+              >
+                Compare {displayedLocation} with {comparisonSuggestionTarget}
+              </button>
+            )}
             <div>
               <input
                 id="chat-input"
                 type="text"
-                placeholder="Click a district to prepare an inspection"
+                placeholder={`Ask about ${displayedLocation}…`}
+                aria-label="Ask AirTrace"
                 value={chatPrompt}
                 onChange={(event) => {
                   setComparisonDistrictName(null);
+                  setShowComparisonSuggestion(false);
                   setChatPrompt(event.target.value);
                 }}
                 onKeyDown={(event) => {
@@ -813,7 +783,6 @@ export default function Home() {
                 →
               </button>
             </div>
-            <small>Gemini receives only the selected district&apos;s bounded evidence package.</small>
           </div>
         </aside>
       </div>

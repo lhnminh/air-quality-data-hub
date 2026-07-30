@@ -298,7 +298,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Write records to DATABASE_URL. Without this flag, Neon is unchanged.",
+        help="Write records to DATABASE_URL. Without this flag, the database is unchanged.",
     )
     return parser.parse_args()
 
@@ -329,11 +329,11 @@ def main() -> None:
         f"to {max(row['observed_on'] for row in records)}"
     )
     if not args.apply:
-        print("Validation only; Neon was not changed. Add --apply to import.")
+        print("Validation only; the database was not changed. Add --apply to import.")
         return
 
     import_records(records)
-    print(f"Imported or refreshed {len(records)} district daily records in Neon")
+    print(f"Imported or refreshed {len(records)} district daily records in the database")
 
 
 if __name__ == "__main__":

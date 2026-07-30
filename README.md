@@ -61,7 +61,7 @@ The operational store contains measurements and model outputs. DataHub contains 
 ### Components
 
 - **Collectors:** scheduled Python jobs that poll data sources every 5–15 minutes where supported.
-- **Operational store:** hosted Neon PostgreSQL for the demo.
+- **Operational store:** hosted PostgreSQL database for the demo.
 - **DataHub:** catalogs sources and outputs, tracks lineage and quality, and stores investigation records.
 - **Event detector:** deterministic thresholds and anomaly rules.
 - **Attribution engine:** scores source hypotheses from spatial, temporal, wind, pollutant, and activity evidence.
@@ -109,19 +109,19 @@ The browser does not connect directly to DataHub or external data feeds. The bac
 
 - **Frontend:** Next.js with MapLibre or Leaflet
 - **Backend:** Python with FastAPI
-- **Demo database:** Neon PostgreSQL
+- **Demo database:** hosted PostgreSQL
 - **Map tiles and locations:** OpenStreetMap
 - **Live experience:** backend polling plus browser updates every 10–30 seconds during the demo
 - **Agent context:** DataHub MCP Server or Agent Context Kit
-- **Judging deployment:** Vercel-hosted frontend and FastAPI connected to Neon PostgreSQL; DataHub runs locally and catalogs the same database
+- **Judging deployment:** Vercel-hosted frontend and FastAPI connected to the hosted PostgreSQL database; DataHub runs locally and catalogs the same database
 
 The hackathon demo can replay timestamped observations as a live event while using the same interfaces intended for real near-real-time feeds.
 
 ### Judging deployment target
 
 The public judging frontend and Python API will be deployed as two Vercel
-projects. Neon PostgreSQL provides persistent shared storage. Open-source
-DataHub runs on a teammate's Mac during the demo and catalogs the same Neon
+projects. The hosted PostgreSQL database provides persistent shared storage. Open-source
+DataHub runs on a teammate's Mac during the demo and catalogs the same
 database, so it remains part of the agent workflow without being hosted on
 Vercel.
 
@@ -205,13 +205,13 @@ Open-Meteo CAMS global model. These are daily model averages, not IQAir or
 physical monitoring-station observations, so they are stored separately in
 `city_air_quality_history`.
 
-Validate the files without changing Neon:
+Validate the files without changing the database:
 
 ```bash
 uv run python scripts/import_city_air_quality_history.py
 ```
 
-After validation succeeds, create or update the Neon tables and explicitly
+After validation succeeds, create or update the database tables and explicitly
 apply the idempotent import:
 
 ```bash
@@ -231,7 +231,7 @@ GET /api/city-air-quality-history?city=Hanoi&days=30
 
 The district backfill retrieves Open-Meteo's CAMS global model for the eight
 pilot-district coordinates and stores one daily-mean row per district. Validate
-a short range without changing Neon first:
+a short range without changing the database first:
 
 ```bash
 uv run python scripts/backfill_district_air_quality_history.py \
@@ -258,10 +258,10 @@ Clicking a district prepares an **Inspect [district] air quality** prompt in the
 dashboard. When the user sends it, Gemini acts as a bounded investigation agent:
 it checks four live DataHub source contracts (CAMS, IQAir, weather, and TomTom)
 against their catalogued PostgreSQL schemas, retrieves the latest district evidence
-and history from Neon, runs transparent source-hypothesis scoring, and asks Gemini
+and history from the database, runs transparent source-hypothesis scoring, and asks Gemini
 to choose the most relevant source-controlled fact cards. Gemini cannot invent a
 number or relabel a source. The backend then saves the report, tool evidence, and a
-review-only action to Neon. Set `GEMINI_API_KEY`,
+review-only action to the database. Set `GEMINI_API_KEY`,
 `GEMINI_MODEL=gemini-3.1-flash-lite`, `DATAHUB_GMS_URL`, and
 `DATAHUB_GMS_TOKEN` in `.env`. Set `DATAHUB_MCP_WRITE_ENABLED=true` during the
 local demo to save a concise investigation document to DataHub as well through its

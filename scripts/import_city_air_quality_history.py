@@ -268,7 +268,7 @@ def main() -> None:
     print(f"License: {records[0]['license']}")
 
     if not args.apply:
-        print("Validation only; Neon was not changed. Add --apply to import these records.")
+        print("Validation only; the database was not changed. Add --apply to import these records.")
         return
 
     import_records(records)

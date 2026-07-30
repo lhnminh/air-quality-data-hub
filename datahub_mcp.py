@@ -240,7 +240,7 @@ def save_investigation_document(
     if os.environ.get("DATAHUB_MCP_WRITE_ENABLED") != "true":
         return {
             "status": "not_enabled",
-            "summary": "DataHub write-back is disabled; the Neon audit record was saved.",
+            "summary": "DataHub write-back is disabled; the database audit record was saved.",
         }
     gms_url = os.environ.get("DATAHUB_GMS_URL")
     gms_token = os.environ.get("DATAHUB_GMS_TOKEN")
@@ -280,7 +280,7 @@ def save_investigation_document(
         # both places.
         saved_document.show_in_global_search()
         client.entities.upsert(saved_document)
-    except Exception as error:  # DataHub is optional; never block a Neon audit record.
+    except Exception as error:  # DataHub is optional; never block a database audit record.
         return {"status": "unavailable", "summary": f"DataHub write-back unavailable: {error}"}
     return {
         "status": "saved",

@@ -5,7 +5,7 @@ AirTrace uses two Vercel projects from the same GitHub repository:
 - `airtrace-api` runs the Python FastAPI application.
 - `airtrace-frontend` runs the Next.js dashboard.
 
-Both use the hosted Neon PostgreSQL database. Open-source DataHub remains on a
+Both use the hosted PostgreSQL database. Open-source DataHub remains on a
 teammate's Mac during the hackathon demo and catalogs that same database.
 
 ## Architecture
@@ -14,7 +14,7 @@ teammate's Mac during the hackathon demo and catalogs that same database.
 flowchart LR
     J["Judge's browser"] --> F["Next.js frontend on Vercel"]
     F --> A["FastAPI on Vercel"]
-    A --> P["Neon PostgreSQL"]
+    A --> P["Hosted PostgreSQL database"]
     C["IQAir collector on the host Mac"] --> I["IQAir API"]
     C --> P
     D["Local DataHub"] --> P
@@ -29,7 +29,7 @@ data through the FastAPI application.
 |---|---|---|
 | Next.js frontend | Vercel | Public dashboard for judges |
 | FastAPI | Vercel | Reads observations from PostgreSQL |
-| PostgreSQL | Neon | Persistent observation storage |
+| PostgreSQL | Hosted database | Persistent observation storage |
 | IQAir collector | Host Mac | Fetches and stores a new observation |
 | DataHub | Host Mac | Catalogs PostgreSQL metadata and profiling |
 
@@ -76,7 +76,7 @@ DATAHUB_POSTGRES_HOST=...
 FRONTEND_URL=http://localhost:3000
 ```
 
-Use Neon's pooled connection string for `DATABASE_URL` when possible. Its
+Use the hosted database's pooled connection string for `DATABASE_URL` when possible. Its
 hostname normally contains `-pooler`.
 
 ### 4. Verify locally
@@ -118,7 +118,7 @@ values in the Vercel dashboard instead.
 7. Add these environment variables:
 
 ```text
-DATABASE_URL=your pooled Neon connection string
+DATABASE_URL=your pooled database connection string
 FRONTEND_URL=http://localhost:3000
 ```
 
@@ -180,7 +180,7 @@ Redeploy the API. Then refresh the frontend. Its status should say
 
 ## Run DataHub for the demo
 
-DataHub is not deployed to Vercel. It runs locally and reads the same Neon
+DataHub is not deployed to Vercel. It runs locally and reads the same hosted
 database as the deployed API.
 
 Start DataHub:
@@ -212,7 +212,7 @@ From the project root on the host Mac:
 uv run python main.py
 ```
 
-The command calls IQAir once and writes the observation to Neon. The deployed
+The command calls IQAir once and writes the observation to the database. The deployed
 frontend can then read it through the deployed API by pressing **Refresh data**.
 
 ## Collect traffic context
@@ -224,7 +224,7 @@ uv run python collect_traffic.py
 ```
 
 The collector calls TomTom Traffic Flow at one representative major-road point
-per pilot district and stores the current and free-flow speeds in Neon. Add
+per pilot district and stores the current and free-flow speeds in the database. Add
 `TOMTOM_API_KEY` to the host's `.env`; never add it to the frontend or commit it.
 Run DataHub ingestion again after the first collection so it catalogs the new
 `traffic_observations` table.
@@ -245,10 +245,10 @@ DATAHUB_MCP_WRITE_ENABLED=true
 The frontend calls `POST /api/investigate` after the user sends a district
 inspection prompt. Gemini chooses from a backend allowlist of tools. The backend
 uses DataHub MCP to verify the live schemas and source contracts for CAMS, IQAir,
-weather, and TomTom, retrieves bounded Neon evidence/history, and runs a
+weather, and TomTom, retrieves bounded database evidence/history, and runs a
 transparent source-hypothesis assessment. Gemini selects relevant fact IDs, while
 the backend supplies the actual values and source labels. The API saves the report,
-tool evidence, and a human-review action to Neon. When
+tool evidence, and a human-review action to the database. When
 `DATAHUB_MCP_WRITE_ENABLED=true`, it also writes a concise investigation document
 to DataHub through DataHub's REST API. The browser never receives the Gemini key,
 DataHub token, or direct database access.
@@ -269,7 +269,7 @@ uv run python collect_weather.py
 
 The command reads current modeled weather from Open-Meteo for Hanoi and saves
 wind speed and direction, gusts, temperature, humidity, precipitation, and a
-weather code to Neon. It does not require an API key.
+weather code to the database. It does not require an API key.
 
 ## Collect modeled pollutant context
 
@@ -280,7 +280,7 @@ uv run python collect_air_quality.py
 ```
 
 The command saves Open-Meteo's CAMS-modelled PM2.5, PM10, NO₂, SO₂, CO, and O₃
-concentrations to Neon for the eight Hanoi pilot districts. These are regional
+concentrations to the database for the eight Hanoi pilot districts. These are regional
 model estimates, not sensor readings.
 
 ## Deployment checklist
@@ -295,7 +295,7 @@ model estimates, not sensor readings.
 - [ ] `.env` and API keys are not committed.
 - [ ] Local DataHub shows the PostgreSQL dataset.
 - [ ] `DATAHUB_GMS_URL` and `DATAHUB_GMS_TOKEN` are set for the agent's MCP connection.
-- [ ] A district inspection creates an `awaiting_human_review` Neon record.
+- [ ] A district inspection creates an `awaiting_human_review` database record.
 - [ ] `main.py` can add a new IQAir observation.
 
 ## Common problems
@@ -312,7 +312,7 @@ Check these in order:
 
 ### The API health response reports an error
 
-Confirm the API project's `DATABASE_URL` is the complete Neon PostgreSQL
+Confirm the API project's `DATABASE_URL` is the complete hosted PostgreSQL
 connection string and includes the required SSL settings.
 
 ### DataHub does not show the newest row

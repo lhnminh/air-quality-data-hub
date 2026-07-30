@@ -1,4 +1,4 @@
-"""Bounded Gemini investigation agent with DataHub and Neon tools."""
+"""Bounded Gemini investigation agent with DataHub and database tools."""
 
 import json
 import os
@@ -28,7 +28,7 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "get_district_evidence",
-        "description": "Read the latest bounded CAMS, IQAir, weather, and TomTom evidence for one Hanoi pilot district from Neon.",
+        "description": "Read the latest bounded CAMS, IQAir, weather, and TomTom evidence for one Hanoi pilot district from the database.",
         "parameters": {
             "type": "OBJECT",
             "properties": {"district_name": {"type": "STRING"}},
@@ -37,7 +37,7 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "get_district_history",
-        "description": "Read up to 24 recent CAMS district observations from Neon when a trend comparison is useful.",
+        "description": "Read up to 24 recent CAMS district observations from the database when a trend comparison is useful.",
         "parameters": {
             "type": "OBJECT",
             "properties": {"district_name": {"type": "STRING"}},
@@ -49,7 +49,7 @@ TOOL_DECLARATIONS = [
         "description": (
             "Run AirTrace's transparent, deterministic evidence assessment for the selected "
             "district. It ranks traffic context, stagnant-weather accumulation, and unknown "
-            "cause using bounded Neon evidence. It never claims a proven source."
+            "cause using bounded database evidence. It never claims a proven source."
         ),
         "parameters": {"type": "OBJECT", "properties": {}},
     },
@@ -185,7 +185,7 @@ def _tool_result(
 def _trace_item(tool_name: str, result: dict[str, Any]) -> dict[str, Any]:
     status = result.get("status", "connected")
     summary = result.get("summary") or (
-        "Retrieved bounded evidence from Neon."
+        "Retrieved bounded evidence from the database."
         if status == "connected"
         else "Tool did not return evidence."
     )
