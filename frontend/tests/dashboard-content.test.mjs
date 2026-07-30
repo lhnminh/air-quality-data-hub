@@ -4,23 +4,36 @@ import test from "node:test";
 
 
 test("contains the four-panel AirTrace workspace and Gemini inspection flow", async () => {
-  const [page, layout, styles, districtMap, historyLineChart] = await Promise.all([
+  const [page, layout, styles, districtMap, historyLineChart, evidenceGraph] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/district-map.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/history-line-chart.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/evidence-graph.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(layout, /AirTrace Vietnam/i);
   assert.match(page, /Hanoi air-quality operations/i);
   assert.match(page, /Reading PostgreSQL/i);
   assert.match(page, /Activity graph/i);
+  assert.match(page, /DataHub turns raw feeds into the trusted context/i);
+  assert.doesNotMatch(page, /From data to defensible action/i);
+  assert.match(evidenceGraph, /Interactive agent evidence graph/i);
+  assert.match(evidenceGraph, /The DataHub unlock/i);
+  assert.match(evidenceGraph, /Schema · lineage · quality/i);
+  assert.match(evidenceGraph, /Drag nodes · scroll to zoom/i);
+  assert.match(evidenceGraph, /graph-arrow-active/i);
+  assert.match(styles, /graph-edge-sweep/i);
+  assert.match(styles, /graph-edge-flow/i);
+  assert.match(evidenceGraph, /Expand graph/i);
+  assert.match(evidenceGraph, /How DataHub unlocks the report/i);
+  assert.match(styles, /\.evidence-graph/);
   assert.match(page, /Hanoi district map/i);
   assert.match(page, /displayedLocation.*historical AQI/i);
   assert.match(page, /Ask about the air/i);
   assert.match(page, /api\/investigate/i);
-  assert.match(page, /Gemini is reviewing selected evidence/i);
+  assert.match(evidenceGraph, /isGeneratingReport \? "running"/i);
   assert.doesNotMatch(page, /Gemini is thinking/i);
   assert.match(page, /Gemini receives only the selected district/i);
   assert.match(page, /Click a district to prepare its AI inspection/i);
