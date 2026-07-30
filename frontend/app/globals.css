@@ -480,6 +480,10 @@ h2 {
   fill: #aeb9b1;
 }
 
+.graph-arrow-active {
+  fill: var(--green);
+}
+
 .graph-edge line {
   stroke: #bac4bc;
   stroke-width: 1.4;
@@ -488,9 +492,9 @@ h2 {
 
 .graph-edge text {
   fill: var(--green);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
   paint-order: stroke;
   pointer-events: none;
   stroke: #f5f7f2;
@@ -507,8 +511,15 @@ h2 {
   stroke-width: 2.2;
 }
 
-.graph-edge.connected .graph-arrow {
-  fill: var(--green);
+.graph-edge .graph-edge-flow {
+  animation: graph-edge-flow 1.15s linear infinite;
+  marker-end: none;
+  opacity: 0.9;
+  pointer-events: none;
+  stroke: var(--lime);
+  stroke-dasharray: 3 9;
+  stroke-linecap: round;
+  stroke-width: 4;
 }
 
 .graph-node {
@@ -560,7 +571,7 @@ h2 {
 
 .graph-node-short {
   fill: #18231d;
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 900;
   pointer-events: none;
 }
@@ -574,12 +585,24 @@ h2 {
 
 .graph-node-label {
   fill: var(--ink);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 800;
   paint-order: stroke;
   pointer-events: none;
   stroke: #f5f7f2;
   stroke-width: 3px;
+}
+
+.evidence-graph:not(.expanded) .graph-edge text {
+  font-size: 13px;
+}
+
+.evidence-graph:not(.expanded) .graph-node-short {
+  font-size: 17px;
+}
+
+.evidence-graph:not(.expanded) .graph-node-label {
+  font-size: 15px;
 }
 
 .graph-node-status {
@@ -641,7 +664,7 @@ h2 {
   border-radius: 999px;
   bottom: 7px;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 9px;
   left: 50%;
   padding: 5px 8px;
   pointer-events: none;
@@ -662,7 +685,7 @@ h2 {
   align-items: center;
   color: var(--muted);
   display: flex;
-  font-size: 8px;
+  font-size: 9px;
   gap: 4px;
 }
 
@@ -726,20 +749,20 @@ h2 {
 
 .graph-inspector-heading span {
   color: var(--green);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .graph-inspector-heading strong {
-  font-size: 12px;
+  font-size: 14px;
   margin-top: 3px;
 }
 
 .graph-inspector p {
   color: #405047;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.45;
   margin: 7px 0 0;
 }
@@ -749,7 +772,7 @@ h2 {
   border-radius: 999px;
   color: var(--muted);
   flex: 0 0 auto;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   padding: 5px 7px;
   text-transform: capitalize;
@@ -781,7 +804,7 @@ h2 {
   border: 1px solid #cbdcce;
   border-radius: 999px;
   color: var(--green);
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 800;
   padding: 4px 6px;
 }
@@ -790,6 +813,16 @@ h2 {
   50% {
     opacity: 0.35;
     transform: scale(0.72);
+  }
+}
+
+@keyframes graph-edge-flow {
+  from {
+    stroke-dashoffset: 24;
+  }
+
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
@@ -1625,7 +1658,8 @@ tbody tr:last-child td {
   .data-status.loading .status-dot,
   .activity-flow .active .flow-node,
   .graph-node.loading .graph-node-status,
-  .graph-node.running .graph-node-status {
+  .graph-node.running .graph-node-status,
+  .graph-edge .graph-edge-flow {
     animation: none;
   }
 }

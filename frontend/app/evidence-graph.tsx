@@ -39,6 +39,14 @@ type GraphNode = {
 
 type Point = { x: number; y: number };
 type Viewport = { x: number; y: number; scale: number };
+type GraphEdge = {
+  source: string;
+  target: string;
+  label: string;
+  hideLabel?: boolean;
+  labelDx?: number;
+  labelDy?: number;
+};
 
 const GRAPH_WIDTH = 520;
 const GRAPH_HEIGHT = 390;
@@ -117,24 +125,24 @@ const initialPositions: Record<string, Point> = {
   traffic: { x: 55, y: 316 },
   datahub: { x: 205, y: 112 },
   neon: { x: 205, y: 268 },
-  agent: { x: 340, y: 190 },
-  report: { x: 465, y: 190 },
+  agent: { x: 320, y: 190 },
+  report: { x: 450, y: 190 },
 };
 
-const edges = [
-  { source: "iqair", target: "datahub", label: "catalogued" },
-  { source: "weather", target: "datahub", label: "catalogued" },
-  { source: "cams", target: "datahub", label: "catalogued" },
-  { source: "traffic", target: "datahub", label: "catalogued" },
-  { source: "iqair", target: "neon", label: "stored" },
-  { source: "weather", target: "neon", label: "stored" },
-  { source: "cams", target: "neon", label: "stored" },
-  { source: "traffic", target: "neon", label: "stored" },
-  { source: "datahub", target: "agent", label: "governs" },
-  { source: "neon", target: "agent", label: "evidence" },
-  { source: "agent", target: "report", label: "explains" },
-  { source: "report", target: "datahub", label: "writes back" },
-] as const;
+const edges: GraphEdge[] = [
+  { source: "iqair", target: "datahub", label: "catalogued", labelDy: -8 },
+  { source: "weather", target: "datahub", label: "catalogued", hideLabel: true },
+  { source: "cams", target: "datahub", label: "catalogued", hideLabel: true },
+  { source: "traffic", target: "datahub", label: "catalogued", hideLabel: true },
+  { source: "iqair", target: "neon", label: "stored", labelDy: -8 },
+  { source: "weather", target: "neon", label: "stored", hideLabel: true },
+  { source: "cams", target: "neon", label: "stored", hideLabel: true },
+  { source: "traffic", target: "neon", label: "stored", hideLabel: true },
+  { source: "datahub", target: "agent", label: "governs", labelDx: 20, labelDy: 26 },
+  { source: "neon", target: "agent", label: "evidence", labelDy: 12 },
+  { source: "agent", target: "report", label: "explains", labelDy: -8 },
+  { source: "report", target: "datahub", label: "writes back", labelDy: -14 },
+];
 
 function sourceStatus(mode: SourceMode) {
   if (mode === "loading") return "loading";
@@ -324,8 +332,11 @@ export default function EvidenceGraph({
             <pattern id="graph-grid" width="24" height="24" patternUnits="userSpaceOnUse">
               <circle cx="1" cy="1" r="1" className="graph-grid-dot" />
             </pattern>
-            <marker id="graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
-              <path d="M0,0 L0,6 L7,3 z" className="graph-arrow" />
+            <marker id="graph-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3.5" orient="auto">
+              <path d="M0,0 L0,7 L8,3.5 z" className="graph-arrow" />
+            </marker>
+            <marker id="graph-arrow-active" markerWidth="8.5" markerHeight="8.5" refX="7.5" refY="3.75" orient="auto">
+              <path d="M0,0 L0,7.5 L8.5,3.75 z" className="graph-arrow-active" />
             </marker>
           </defs>
           <rect width={GRAPH_WIDTH} height={GRAPH_HEIGHT} fill="url(#graph-grid)" />
@@ -333,18 +344,44 @@ export default function EvidenceGraph({
             {edges.map((edge) => {
               const start = positions[edge.source];
               const end = positions[edge.target];
+              const deltaX = end.x - start.x;
+              const deltaY = end.y - start.y;
+              const distance = Math.hypot(deltaX, deltaY) || 1;
+              const sourceOffset = edge.source === "datahub" ? 37 : 33;
+              const targetOffset = edge.target === "datahub" ? 39 : 35;
+              const lineStart = {
+                x: start.x + (deltaX / distance) * sourceOffset,
+                y: start.y + (deltaY / distance) * sourceOffset,
+              };
+              const lineEnd = {
+                x: end.x - (deltaX / distance) * targetOffset,
+                y: end.y - (deltaY / distance) * targetOffset,
+              };
               const isConnected = edge.source === selectedNodeId || edge.target === selectedNodeId;
               return (
                 <g className={`graph-edge ${isConnected ? "connected" : ""}`} key={`${edge.source}-${edge.target}`}>
                   <line
-                    x1={start.x}
-                    y1={start.y}
-                    x2={end.x}
-                    y2={end.y}
-                    markerEnd="url(#graph-arrow)"
+                    className="graph-edge-base"
+                    x1={lineStart.x}
+                    y1={lineStart.y}
+                    x2={lineEnd.x}
+                    y2={lineEnd.y}
+                    markerEnd={isConnected ? "url(#graph-arrow-active)" : "url(#graph-arrow)"}
                   />
                   {isConnected && (
-                    <text x={(start.x + end.x) / 2} y={(start.y + end.y) / 2 - 6}>
+                    <line
+                      className="graph-edge-flow"
+                      x1={lineStart.x}
+                      y1={lineStart.y}
+                      x2={lineEnd.x}
+                      y2={lineEnd.y}
+                    />
+                  )}
+                  {isConnected && !edge.hideLabel && (
+                    <text
+                      x={(start.x + end.x) / 2 + (edge.labelDx ?? 0)}
+                      y={(start.y + end.y) / 2 + (edge.labelDy ?? -6)}
+                    >
                       {edge.label}
                     </text>
                   )}
