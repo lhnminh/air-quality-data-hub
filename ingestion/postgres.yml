@@ -11,7 +11,7 @@ source:
     env: "PROD"
     platform_instance: "airtrace-neon"
 
-    # AirTrace currently stores tables only in the public schema.
+    # AerX currently stores tables only in the public schema.
     schema_pattern:
       allow:
         - "public"

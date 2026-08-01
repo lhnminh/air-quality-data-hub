@@ -58,7 +58,7 @@ def test_save_observation(fake_cursor, iqair_result):
 
     assert inserted is True
 
-    query, values = fake_cursor.execute.call_args.args
+    query, values = fake_cursor.execute.call_args_list[0].args
 
     assert "INSERT INTO air_quality_observations" in query
     assert values[0] == "IQAir"
@@ -168,6 +168,33 @@ def test_get_recent_weather_observations(fake_cursor):
 
     assert observations[0]["source"] == "Open-Meteo"
     assert observations[0]["wind_speed_kmh"] == 11.4
+
+
+def test_save_firms_fire_observation(fake_cursor):
+    fake_cursor.fetchone.return_value = (1,)
+    detection = {
+        "latitude": "21.0312",
+        "longitude": "105.8334",
+        "acq_date": "2026-08-01",
+        "acq_time": "0415",
+        "satellite": "N",
+        "confidence": "nominal",
+        "frp": "7.4",
+        "bright_ti4": "329.8",
+        "daynight": "N",
+    }
+
+    inserted = database.save_firms_fire_observation(
+        detection, "VIIRS_NOAA20_NRT", "2026-08-01T05:00:00+00:00"
+    )
+
+    assert inserted is True
+    query, values = fake_cursor.execute.call_args.args
+    assert "INSERT INTO fire_observations" in query
+    assert values[0].startswith("firms:VIIRS_NOAA20_NRT:")
+    assert values[1] == "NASA FIRMS VIIRS NOAA-20"
+    assert values[6] == "nominal"
+    assert values[7] == 7.4
 
 
 def test_save_modeled_air_quality_observation(fake_cursor):
@@ -301,10 +328,10 @@ def test_get_district_investigation_context(fake_cursor):
 
     context = database.get_district_investigation_context("Hoan Kiem")
 
-    query, values = fake_cursor.execute.call_args.args
+    query, values = fake_cursor.execute.call_args_list[0].args
     assert "district_air" in query
     assert "district_traffic" in query
-    assert values == ["Hoan Kiem", "Hoan Kiem", "Hoan Kiem", "Hoan Kiem"]
+    assert values == ["Hoan Kiem"] * 5
     assert context is not None
     assert context["district_us_aqi"] == 97
 

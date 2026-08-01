@@ -137,7 +137,7 @@ def test_verified_facts_always_include_honestly_labelled_traffic():
             "source": "Open-Meteo CAMS model estimate",
         },
         {
-            "label": "Traffic on Tran Quang Khai",
+            "label": "Traffic across 1 sampled road(s) in Hoan Kiem",
             "value": "21.0 km/h (free flow 38.0 km/h)",
             "source": "TomTom Traffic Flow",
         },
@@ -208,8 +208,8 @@ def test_comparison_keeps_both_districts_source_controlled():
 
     assert report["title"] == "Air-quality comparison — Dong Da vs Ba Dinh"
     assert "Dong Da has the higher" in report["summary"]
-    assert len(report["numeric_summary"]) == 8
-    assert report["numeric_summary"][-1]["source"] == "TomTom Traffic Flow"
+    assert len(report["numeric_summary"]) == 10
+    assert report["numeric_summary"][-1]["source"] == "NASA FIRMS VIIRS satellite thermal detections"
     assert [item["label"] for item in report["numeric_summary"]] == [
         "Dong Da modelled US AQI",
         "Ba Dinh modelled US AQI",
@@ -217,8 +217,10 @@ def test_comparison_keeps_both_districts_source_controlled():
         "Ba Dinh modelled PM2.5",
         "Wind in Dong Da",
         "Wind in Ba Dinh",
-        "Traffic on Tay Son",
-        "Traffic on Kim Ma",
+        "Traffic across 1 sampled road(s) in Dong Da",
+        "Traffic across 1 sampled road(s) in Ba Dinh",
+        "NASA FIRMS nearby/upwind detections for Dong Da",
+        "NASA FIRMS nearby/upwind detections for Ba Dinh",
     ]
     assert "CAMS model estimates" in report["comparison_note"]
 

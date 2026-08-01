@@ -12,13 +12,14 @@ from database import (
     get_district_investigation_context,
     get_recent_modeled_air_quality_observations,
     get_recent_observations,
+    get_recent_fire_observations,
     get_recent_traffic_observations,
     get_recent_weather_observations,
 )
 from districts import DISTRICTS
 from agent import run_district_agent
 
-app = FastAPI(title="AirTrace API")
+app = FastAPI(title="AerX API")
 
 # The local frontend runs on port 3000. FRONTEND_URL can be changed later
 # when the frontend is deployed.
@@ -128,6 +129,14 @@ def recent_traffic_observations(
         "count": len(observations),
         "observations": observations,
     }
+
+
+@app.get("/api/fires")
+def recent_fire_observations(
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict:
+    observations = get_recent_fire_observations(limit=limit)
+    return {"count": len(observations), "observations": observations}
 
 
 @app.get("/api/districts")
