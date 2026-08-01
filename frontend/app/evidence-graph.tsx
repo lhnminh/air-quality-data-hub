@@ -25,6 +25,7 @@ type EvidenceGraphProps = {
   isGeneratingReport: boolean;
   reportReady: boolean;
   toolTrace: ToolTrace[];
+  onOpenReport?: () => void;
 };
 
 type NodeKind = "source" | "store" | "datahub" | "agent" | "output";
@@ -165,6 +166,7 @@ export default function EvidenceGraph({
   isGeneratingReport,
   reportReady,
   toolTrace,
+  onOpenReport,
 }: EvidenceGraphProps) {
   const [selectedNodeId, setSelectedNodeId] = useState("datahub");
   const [isExpanded, setIsExpanded] = useState(false);
@@ -404,10 +406,15 @@ export default function EvidenceGraph({
                   tabIndex={0}
                   aria-label={`${node.label}, ${statusLabel(status)}`}
                   onPointerDown={(event) => beginNodeDrag(event, node.id)}
+                  onClick={() => {
+                    setSelectedNodeId(node.id);
+                    if (node.id === "report" && reportReady) onOpenReport?.();
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault();
                       setSelectedNodeId(node.id);
+                      if (node.id === "report" && reportReady) onOpenReport?.();
                     }
                   }}
                 >
