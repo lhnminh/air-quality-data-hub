@@ -431,14 +431,14 @@ export default function Home() {
         detail?: string;
       };
       if (!response.ok || !result.report) {
-        throw new Error(result.detail ?? "AirTrace could not generate a report.");
+        throw new Error(result.detail ?? "AerX could not generate a report.");
       }
       setReport(result.report);
       setToolTrace(result.tool_trace ?? []);
       setInvestigationView("report");
     } catch (error) {
       setReportError(
-        error instanceof Error ? error.message : "AirTrace could not generate a report.",
+        error instanceof Error ? error.message : "AerX could not generate a report.",
       );
     } finally {
       setIsGeneratingReport(false);
@@ -460,15 +460,19 @@ export default function Home() {
   return (
     <main className="app-shell" id="top">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="AirTrace home">
+        <a className="brand" href="#top" aria-label="AerX home">
           <span className="brand-mark" aria-hidden="true">
-            <i />
-            <i />
-            <i />
+            <svg viewBox="0 0 56 56" focusable="false">
+              <path className="brand-oxygen-shell" d="M29 5C15.7 4.3 5 14.6 5 28s10.7 23.7 24 23c10.2-.5 18.8-7.4 21.3-16.8" />
+              <path className="brand-oxygen-orbit" d="M41.3 9.6C48.3 14 51 22.3 48.2 29.8c-2.7 7.4-10.3 12.4-18.2 11.6" />
+              <path className="brand-wind-main" d="M9.5 24.2c3.1-4.7 6.2-4.7 9.3 0s6.2 4.7 9.3 0 6.2-4.7 9.3 0 6.2 4.7 9.3 0" />
+              <path className="brand-wind-echo" d="M16.6 31.9c2.1-3.1 4.2-3.1 6.3 0s4.2 3.1 6.3 0 4.2-3.1 6.3 0" />
+              <circle className="brand-air-node" cx="45.2" cy="10.6" r="3.1" />
+            </svg>
           </span>
           <span>
-            <strong>AirTrace</strong>
-            <small>Vietnam</small>
+            <strong>AerX</strong>
+            <small>Hanoi air intelligence</small>
           </span>
         </a>
 
@@ -641,7 +645,7 @@ export default function Home() {
         <aside className="workspace-panel ai-panel chat-panel investigation-panel" aria-labelledby="investigation-title">
           <div className="investigation-heading">
             <div>
-              <p className="eyebrow">AirTrace workspace</p>
+              <p className="eyebrow">AerX workspace</p>
               <h2 id="investigation-title">Investigation</h2>
             </div>
             <span className={`investigation-state ${isGeneratingReport ? "running" : report ? "ready" : "idle"}`}>
@@ -694,7 +698,7 @@ export default function Home() {
                   <article className="agent-processing-card" aria-live="polite">
                     <div className="processing-loader" aria-hidden="true" />
                     <div>
-                      <span>AirTrace investigation in progress</span>
+                      <span>AerX investigation in progress</span>
                       <strong>
                         {[
                           "Checking DataHub source contracts",
@@ -727,13 +731,13 @@ export default function Home() {
             )}
 
             {investigationView === "report" && report && (
-              <article className="investigation-report" role="tabpanel" aria-label="AirTrace report">
+              <article className="investigation-report" role="tabpanel" aria-label="AerX report">
                 <div className="report-toolbar">
                   <button type="button" onClick={() => setInvestigationView("graph")}>← Back to node graph</button>
                   <span><i />Evidence-backed · {toolTrace.length || 4} sources verified</span>
                 </div>
                 <div className="report-document">
-                  <span className="report-eyebrow">AirTrace report</span>
+                  <span className="report-eyebrow">AerX report</span>
                   <h3>{report.title}</h3>
                   <p className="report-summary">{report.summary}</p>
 
@@ -796,7 +800,7 @@ export default function Home() {
                 <div className="secondary-view-heading">
                   <span>Evidence interpretation</span>
                   <h3>Reasoning trail</h3>
-                  <p>AirTrace separates supporting signals from limitations before it writes the report.</p>
+                  <p>AerX separates supporting signals from limitations before it writes the report.</p>
                 </div>
                 {report?.hypothesis_ranking?.length ? report.hypothesis_ranking.map((hypothesis, index) => (
                   <article className="reasoning-step" key={hypothesis.label}>
@@ -827,7 +831,7 @@ export default function Home() {
                       <p>{tool.summary}</p>
                     </div>
                   )) : (
-                    <div><strong>No investigation yet</strong><p>Ask AirTrace a question to create a verified activity trace.</p></div>
+                    <div><strong>No investigation yet</strong><p>Ask AerX a question to create a verified activity trace.</p></div>
                   )}
                 </article>
               </section>
@@ -850,7 +854,7 @@ export default function Home() {
                 id="chat-input"
                 type="text"
                 placeholder={report && investigationView === "report" ? "Ask a follow-up about this report…" : `Ask about ${displayedLocation}…`}
-                aria-label="Ask AirTrace"
+                aria-label="Ask AerX"
                 value={chatPrompt}
                 onChange={(event) => {
                   setComparisonDistrictName(null);

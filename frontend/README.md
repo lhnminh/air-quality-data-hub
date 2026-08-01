@@ -1,4 +1,4 @@
-# AirTrace frontend
+# AerX frontend
 
 This folder contains the dashboard that people see in their browser.
 
