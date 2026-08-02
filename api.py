@@ -145,17 +145,39 @@ def district_statuses() -> dict:
     return {"count": len(districts), "districts": districts}
 
 
+def _comparison_district_from_prompt(prompt: str, selected_district: str) -> str | None:
+    """Resolve one explicitly named Hanoi pilot district in a comparison request.
+
+    This keeps manual chat prompts as safe as the comparison picker: only a
+    single named pilot district can become the second comparison target.
+    """
+    normalized_prompt = prompt.casefold()
+    if "compar" not in normalized_prompt:
+        return None
+    matches = [
+        district["name"]
+        for district in DISTRICTS
+        if district["name"] != selected_district
+        and district["name"].casefold() in normalized_prompt
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
 @app.post("/api/investigate")
 def investigate_district(request: InvestigationRequest) -> dict:
     district_names = {district["name"] for district in DISTRICTS}
     if request.district_name not in district_names:
         raise HTTPException(status_code=404, detail="Unknown Hanoi pilot district")
-    if (
+    comparison_district_name = (
         request.comparison_district_name
-        and request.comparison_district_name not in district_names
+        or _comparison_district_from_prompt(request.prompt, request.district_name)
+    )
+    if (
+        comparison_district_name
+        and comparison_district_name not in district_names
     ):
         raise HTTPException(status_code=404, detail="Unknown comparison district")
-    if request.comparison_district_name == request.district_name:
+    if comparison_district_name == request.district_name:
         raise HTTPException(
             status_code=422,
             detail="Choose a different district to compare",
@@ -171,10 +193,11 @@ def investigate_district(request: InvestigationRequest) -> dict:
     agent_result = run_district_agent(
         request.district_name,
         request.prompt,
-        request.comparison_district_name,
+        comparison_district_name,
     )
     return {
         "district_name": request.district_name,
+        "comparison_district_name": comparison_district_name,
         "prompt": request.prompt,
         **agent_result,
     }

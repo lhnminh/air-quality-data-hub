@@ -28,7 +28,7 @@ TOOL_DECLARATIONS = [
     },
     {
         "name": "get_district_evidence",
-        "description": "Read the latest bounded CAMS, IQAir, weather, and TomTom evidence for one Hanoi pilot district from the database.",
+        "description": "Read the latest bounded CAMS, IQAir, weather, TomTom, and NASA FIRMS evidence for one Hanoi pilot district from the database.",
         "parameters": {
             "type": "OBJECT",
             "properties": {"district_name": {"type": "STRING"}},
@@ -57,7 +57,7 @@ TOOL_DECLARATIONS = [
     {
         "name": "compare_district_evidence",
         "description": (
-            "Compare the bounded CAMS, IQAir, weather, and TomTom evidence for "
+            "Compare the bounded CAMS, IQAir, weather, TomTom, and NASA FIRMS evidence for "
             "the selected district and one explicitly requested Hanoi pilot district."
         ),
         "parameters": {
@@ -156,7 +156,7 @@ def _tool_result(
             "primary_history": get_district_history(district_name),
             "comparison_history": get_district_history(comparison_district_name),
             "summary": (
-                f"Retrieved bounded CAMS, IQAir, weather, TomTom, and recent model-history "
+                f"Retrieved bounded CAMS, IQAir, weather, TomTom, NASA FIRMS, and recent model-history "
                 f"evidence for {district_name} and {comparison_district_name}."
             ),
         }
@@ -332,6 +332,14 @@ def _value(value: Any, suffix: str = "") -> str:
     return f"{value}{suffix}"
 
 
+def _format_decimal(value: Any, places: int = 2) -> str:
+    """Format numeric evidence compactly without exposing database float precision."""
+    number = _as_number(value)
+    if number is None:
+        return str(value)
+    return f"{number:.{places}f}"
+
+
 def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
     """Offer Gemini real, source-labelled facts; it may choose but cannot invent one."""
     district = context["district_name"]
@@ -340,7 +348,7 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
     traffic_speed = context.get("traffic_current_speed_kmh")
     free_flow_speed = context.get("traffic_free_flow_speed_kmh")
     traffic_value = (
-        f"{traffic_speed} km/h (free flow {free_flow_speed} km/h)"
+        f"{_format_decimal(traffic_speed)} km/h (free flow {_format_decimal(free_flow_speed)} km/h)"
         if traffic_speed is not None and free_flow_speed is not None
         else "No current reading"
     )
@@ -434,10 +442,17 @@ def _verified_numeric_summary(
     candidates = _fact_candidates(context)
     requested = selected_fact_ids or _default_fact_ids(candidates)
     chosen = []
-    # These three facts are required for a meaningful district comparison;
-    # Gemini chooses the remaining contextual facts by relevance.
+    # AQI, PM2.5, and traffic provide the essential reading and context.
+    # Gemini chooses remaining cards; a positive satellite detection is promoted
+    # so a real potential fire/heat clue cannot be hidden by a model omission.
     required_fact_ids = ("district_aqi", "district_pm25", "traffic_speed")
-    for fact_id in (*required_fact_ids, *requested):
+    fire_detected = int(context.get("recent_fire_detection_count") or 0) > 0
+    prioritized_fact_ids = (
+        *required_fact_ids,
+        *(("fire_context",) if fire_detected else ()),
+        *requested,
+    )
+    for fact_id in prioritized_fact_ids:
         if fact_id in candidates and fact_id not in {item["id"] for item in chosen}:
             chosen.append({"id": fact_id, **candidates[fact_id]})
         if len(chosen) == 8:
@@ -540,7 +555,7 @@ def _comparison_facts(context: dict[str, Any]) -> list[dict[str, str]]:
     speed = context.get("traffic_current_speed_kmh")
     free_flow = context.get("traffic_free_flow_speed_kmh")
     speed_value = (
-        f"{speed} km/h (free flow {free_flow} km/h)"
+        f"{_format_decimal(speed)} km/h (free flow {_format_decimal(free_flow)} km/h)"
         if speed is not None and free_flow is not None
         else "No current reading"
     )

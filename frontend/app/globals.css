@@ -2829,8 +2829,35 @@ h2 {
 }
 
 @media (min-width: 1181px) {
+  html,
   body {
+    height: 100%;
     overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace.lab-workspace {
+    height: calc(100dvh - 76px);
+    min-height: 0;
+  }
+
+  /*
+   * The graph is the naturally flexible area of the investigation workspace.
+   * It fills a large display, then gives up space on a short desktop window so
+   * the DataHub status, live progress state, and composer stay in view.
+   */
+  .graph-view .evidence-graph {
+    flex-basis: 0;
+    min-height: 0;
+  }
+
+  .graph-stage {
+    min-height: clamp(130px, 27vh, 300px);
   }
 }
 

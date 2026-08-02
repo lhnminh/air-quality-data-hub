@@ -395,7 +395,7 @@ export default function Home() {
   useEffect(() => {
     if (!isGeneratingReport) return;
     const interval = window.setInterval(() => {
-      setProcessingStage((stage) => (stage + 1) % 5);
+      setProcessingStage((stage) => (stage + 1) % 6);
     }, 1100);
     return () => window.clearInterval(interval);
   }, [isGeneratingReport]);
@@ -524,8 +524,8 @@ export default function Home() {
             </article>
             <article className="metric-cell metric-sources">
               <span>Evidence</span>
-              <strong>{toolTrace.length || 4}</strong>
-              <small>{toolTrace.length ? "tools in latest trace" : "sources available"}</small>
+              <strong>5</strong>
+              <small>evidence sources</small>
             </article>
           </section>
 
@@ -680,7 +680,7 @@ export default function Home() {
             {investigationView === "graph" && (
               <section className="graph-view" role="tabpanel" aria-label="Node graph">
                 <div className="graph-view-status">
-                  <span><i />8 nodes · Live trace</span>
+                  <span><i />9 nodes · Live trace</span>
                   <small>{displayedLocation} evidence workspace</small>
                 </div>
                 <EvidenceGraph
@@ -705,6 +705,7 @@ export default function Home() {
                           "Reading district air and pollutant evidence",
                           "Checking weather, wind, and dispersion context",
                           "Comparing TomTom traffic conditions",
+                          "Checking NASA FIRMS satellite thermal detections",
                           comparisonDistrictName
                             ? `Comparing ${displayedLocation} with ${comparisonDistrictName}`
                             : "Writing a cautious evidence-backed report",
@@ -712,7 +713,7 @@ export default function Home() {
                       </strong>
                     </div>
                     <div className="processing-steps" aria-hidden="true">
-                      {[0, 1, 2, 3, 4].map((stage) => (
+                      {[0, 1, 2, 3, 4, 5].map((stage) => (
                         <i key={stage} className={stage <= processingStage ? "done" : ""} />
                       ))}
                     </div>
@@ -734,7 +735,7 @@ export default function Home() {
               <article className="investigation-report" role="tabpanel" aria-label="AerX report">
                 <div className="report-toolbar">
                   <button type="button" onClick={() => setInvestigationView("graph")}>← Back to node graph</button>
-                  <span><i />Evidence-backed · {toolTrace.length || 4} sources verified</span>
+                  <span><i />Evidence-backed · {toolTrace.length || 5} trace checks completed</span>
                 </div>
                 <div className="report-document">
                   <span className="report-eyebrow">AerX report</span>
@@ -788,7 +789,7 @@ export default function Home() {
                   {report.ai_status && <p className="report-quality">{report.ai_status}</p>}
 
                   <footer className="report-provenance">
-                    <div><span>IQAir</span><span>Weather</span><span>CAMS</span><span>Traffic</span></div>
+                    <div><span>IQAir</span><span>Weather</span><span>CAMS</span><span>Traffic</span><span>NASA FIRMS</span></div>
                     <button type="button" onClick={() => setInvestigationView("activity")}>View activity trace ↗</button>
                   </footer>
                 </div>
