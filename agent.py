@@ -23,12 +23,12 @@ GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 TOOL_DECLARATIONS = [
     {
         "name": "get_datahub_context",
-        "description": "Read AirTrace dataset metadata, lineage, and catalog context through DataHub MCP.",
+        "description": "Read AerX dataset metadata, lineage, and catalog context through DataHub MCP.",
         "parameters": {"type": "OBJECT", "properties": {}},
     },
     {
         "name": "get_district_evidence",
-        "description": "Read the latest bounded CAMS, IQAir, weather, and TomTom evidence for one Hanoi pilot district from the database.",
+        "description": "Read the latest bounded CAMS, IQAir, weather, TomTom, and NASA FIRMS evidence for one Hanoi pilot district from the database.",
         "parameters": {
             "type": "OBJECT",
             "properties": {"district_name": {"type": "STRING"}},
@@ -47,8 +47,9 @@ TOOL_DECLARATIONS = [
     {
         "name": "evaluate_district_hypotheses",
         "description": (
-            "Run AirTrace's transparent, deterministic evidence assessment for the selected "
-            "district. It ranks traffic context, stagnant-weather accumulation, and unknown "
+            "Run AerX's transparent, deterministic evidence assessment for the selected "
+            "district. It ranks traffic context, stagnant-weather accumulation, recent upwind "
+            "NASA FIRMS VIIRS thermal detections, and unknown "
             "cause using bounded database evidence. It never claims a proven source."
         ),
         "parameters": {"type": "OBJECT", "properties": {}},
@@ -56,7 +57,7 @@ TOOL_DECLARATIONS = [
     {
         "name": "compare_district_evidence",
         "description": (
-            "Compare the bounded CAMS, IQAir, weather, and TomTom evidence for "
+            "Compare the bounded CAMS, IQAir, weather, TomTom, and NASA FIRMS evidence for "
             "the selected district and one explicitly requested Hanoi pilot district."
         ),
         "parameters": {
@@ -155,7 +156,7 @@ def _tool_result(
             "primary_history": get_district_history(district_name),
             "comparison_history": get_district_history(comparison_district_name),
             "summary": (
-                f"Retrieved bounded CAMS, IQAir, weather, TomTom, and recent model-history "
+                f"Retrieved bounded CAMS, IQAir, weather, TomTom, NASA FIRMS, and recent model-history "
                 f"evidence for {district_name} and {comparison_district_name}."
             ),
         }
@@ -179,7 +180,7 @@ def _tool_result(
             "status": "connected" if context else "missing",
             "assessment": _evaluate_district_hypotheses(context, history),
         }
-    return {"status": "rejected", "summary": "Tool is not on the AirTrace allowlist."}
+    return {"status": "rejected", "summary": "Tool is not on the AerX allowlist."}
 
 
 def _trace_item(tool_name: str, result: dict[str, Any]) -> dict[str, Any]:
@@ -235,7 +236,10 @@ def _evaluate_district_hypotheses(
         traffic_score += 30
         traffic_evidence.append(f"TomTom congestion is {congestion:.0f}% on the representative road.")
     else:
-        traffic_against.append(f"TomTom congestion is only {congestion:.0f}% on the representative road.")
+        sample_count = int(context.get("traffic_sample_count") or 1)
+        traffic_against.append(
+            f"TomTom average congestion is only {congestion:.0f}% across {sample_count} sampled road(s)."
+        )
     if no2_ratio is not None and no2_ratio >= 1.2:
         traffic_score += 20
         traffic_evidence.append("Modelled NO₂ is at least 20% above the recent district median.")
@@ -259,6 +263,24 @@ def _evaluate_district_hypotheses(
         accumulation_score += 10
         accumulation_evidence.append(f"Humidity is high at {humidity:.0f}%.")
 
+    fire_count = int(context.get("recent_fire_detection_count") or 0)
+    upwind_fire_count = int(context.get("upwind_fire_detection_count") or 0)
+    fire_score = 5
+    fire_evidence: list[str] = []
+    fire_against: list[str] = []
+    if upwind_fire_count:
+        fire_score += 45
+        fire_evidence.append(
+            f"NASA FIRMS reported {upwind_fire_count} recent satellite thermal detection(s) within 75 km in the wind-from direction."
+        )
+    elif fire_count:
+        fire_score += 10
+        fire_against.append(
+            f"NASA FIRMS reported {fire_count} nearby thermal detection(s), but none were currently upwind."
+        )
+    else:
+        fire_against.append("No recent NASA FIRMS VIIRS thermal detections were found within 75 km.")
+
     unknown_score = 30
     if not history:
         unknown_score += 30
@@ -281,9 +303,15 @@ def _evaluate_district_hypotheses(
             "contradicting_evidence": accumulation_against,
         },
         {
+            "label": "Possible upwind burning or thermal source",
+            "score": min(fire_score, 100),
+            "supporting_evidence": fire_evidence,
+            "contradicting_evidence": fire_against,
+        },
+        {
             "label": "Cause remains uncertain",
             "score": min(unknown_score, 100),
-            "supporting_evidence": ["AirTrace has no local source-attribution sensor or fire feed."],
+            "supporting_evidence": ["AerX has no local source-attribution sensor and satellite detections cannot confirm a pollution source."],
             "contradicting_evidence": [],
         },
     ]
@@ -292,7 +320,8 @@ def _evaluate_district_hypotheses(
         "hypotheses": sorted(hypotheses, key=lambda item: item["score"], reverse=True),
         "limitations": [
             "CAMS is a regional model estimate, not a local sensor.",
-            "TomTom represents one road point and cannot prove a pollution source.",
+            "TomTom is a representative multi-road sample and cannot prove a pollution source.",
+            "NASA FIRMS VIIRS reports satellite thermal anomalies, not confirmed fires or a verified emissions source.",
         ],
     }
 
@@ -303,14 +332,23 @@ def _value(value: Any, suffix: str = "") -> str:
     return f"{value}{suffix}"
 
 
+def _format_decimal(value: Any, places: int = 2) -> str:
+    """Format numeric evidence compactly without exposing database float precision."""
+    number = _as_number(value)
+    if number is None:
+        return str(value)
+    return f"{number:.{places}f}"
+
+
 def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
     """Offer Gemini real, source-labelled facts; it may choose but cannot invent one."""
     district = context["district_name"]
     traffic_road = context.get("traffic_road_name") or district
+    traffic_sample_count = int(context.get("traffic_sample_count") or 1)
     traffic_speed = context.get("traffic_current_speed_kmh")
     free_flow_speed = context.get("traffic_free_flow_speed_kmh")
     traffic_value = (
-        f"{traffic_speed} km/h (free flow {free_flow_speed} km/h)"
+        f"{_format_decimal(traffic_speed)} km/h (free flow {_format_decimal(free_flow_speed)} km/h)"
         if traffic_speed is not None and free_flow_speed is not None
         else "No current reading"
     )
@@ -368,14 +406,22 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
             "source": "Open-Meteo weather model",
         },
         "traffic_speed": {
-            "label": f"Traffic on {traffic_road}",
+            "label": f"Traffic across {traffic_sample_count} sampled road(s) in {district}",
             "value": traffic_value,
             "source": "TomTom Traffic Flow",
         },
         "traffic_congestion": {
-            "label": f"Traffic congestion on {traffic_road}",
+            "label": f"Average traffic congestion across {traffic_sample_count} road(s)",
             "value": _value(context.get("traffic_congestion_percent"), "%"),
             "source": "TomTom Traffic Flow",
+        },
+        "fire_context": {
+            "label": f"Recent nearby NASA FIRMS detections for {district}",
+            "value": (
+                f"{context.get('recent_fire_detection_count', 0)} nearby; "
+                f"{context.get('upwind_fire_detection_count', 0)} upwind"
+            ),
+            "source": "NASA FIRMS VIIRS satellite thermal detections",
         },
     }
     return candidates
@@ -384,7 +430,7 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
 def _default_fact_ids(candidates: dict[str, dict[str, str]]) -> list[str]:
     """Use a useful, honest first report if Gemini cannot make a valid selection."""
     preferred = [
-        "district_aqi", "district_pm25", "city_aqi", "wind", "humidity", "traffic_speed",
+        "district_aqi", "district_pm25", "city_aqi", "wind", "humidity", "traffic_speed", "fire_context",
     ]
     return [fact_id for fact_id in preferred if fact_id in candidates]
 
@@ -396,10 +442,17 @@ def _verified_numeric_summary(
     candidates = _fact_candidates(context)
     requested = selected_fact_ids or _default_fact_ids(candidates)
     chosen = []
-    # These three facts are required for a meaningful district comparison;
-    # Gemini chooses the remaining contextual facts by relevance.
+    # AQI, PM2.5, and traffic provide the essential reading and context.
+    # Gemini chooses remaining cards; a positive satellite detection is promoted
+    # so a real potential fire/heat clue cannot be hidden by a model omission.
     required_fact_ids = ("district_aqi", "district_pm25", "traffic_speed")
-    for fact_id in (*required_fact_ids, *requested):
+    fire_detected = int(context.get("recent_fire_detection_count") or 0) > 0
+    prioritized_fact_ids = (
+        *required_fact_ids,
+        *(("fire_context",) if fire_detected else ()),
+        *requested,
+    )
+    for fact_id in prioritized_fact_ids:
         if fact_id in candidates and fact_id not in {item["id"] for item in chosen}:
             chosen.append({"id": fact_id, **candidates[fact_id]})
         if len(chosen) == 8:
@@ -422,7 +475,8 @@ def _apply_verified_facts(
     report["data_quality"] = (
         "District AQI and pollutant values are Open-Meteo CAMS regional model "
         "estimates, not ground-sensor readings. IQAir is city-wide. Traffic is "
-        "one representative TomTom road-flow point and provides context only. "
+        "a representative multi-road TomTom sample and provides context only. NASA FIRMS reports "
+        "satellite thermal detections, not confirmed fires or a verified emissions source. "
         + datahub_note
     )
     assessment = _evaluate_district_hypotheses(context, history or [])
@@ -497,10 +551,11 @@ def _comparison_facts(context: dict[str, Any]) -> list[dict[str, str]]:
     """Return a compact, source-controlled counterpart snapshot for comparisons."""
     district = context.get("district_name", "Comparison district")
     road = context.get("traffic_road_name") or district
+    sample_count = int(context.get("traffic_sample_count") or 1)
     speed = context.get("traffic_current_speed_kmh")
     free_flow = context.get("traffic_free_flow_speed_kmh")
     speed_value = (
-        f"{speed} km/h (free flow {free_flow} km/h)"
+        f"{_format_decimal(speed)} km/h (free flow {_format_decimal(free_flow)} km/h)"
         if speed is not None and free_flow is not None
         else "No current reading"
     )
@@ -521,9 +576,17 @@ def _comparison_facts(context: dict[str, Any]) -> list[dict[str, str]]:
             "source": "Open-Meteo weather model",
         },
         {
-            "label": f"Traffic on {road}",
+            "label": f"Traffic across {sample_count} sampled road(s) in {district}",
             "value": speed_value,
             "source": "TomTom Traffic Flow",
+        },
+        {
+            "label": f"NASA FIRMS nearby/upwind detections for {district}",
+            "value": (
+                f"{context.get('recent_fire_detection_count', 0)} nearby; "
+                f"{context.get('upwind_fire_detection_count', 0)} upwind"
+            ),
+            "source": "NASA FIRMS VIIRS satellite thermal detections",
         },
     ]
 
@@ -556,7 +619,7 @@ def _apply_comparison(
     report["title"] = f"Air-quality comparison — {first} vs {second}"
     report["summary"] = f"{report['summary']} {comparison_sentence}"
     # Keep matching facts beside one another in the two-column UI: AQI versus
-    # AQI, then PM2.5 versus PM2.5, wind versus wind, and traffic versus traffic.
+    # AQI, PM2.5, wind, traffic, and FIRMS context appear side by side for comparison.
     # This is clearer than grouping all four facts by district.
     primary_facts = _comparison_facts(primary)
     comparison_facts = _comparison_facts(comparison)
@@ -567,7 +630,8 @@ def _apply_comparison(
     ]
     report["comparison_note"] = (
         "Both district values are CAMS model estimates. IQAir remains a separate, "
-        "city-wide reference; weather and one TomTom road point per district provide context only."
+        "city-wide reference; weather, a representative multi-road TomTom sample, and NASA FIRMS "
+        "thermal detections provide context only."
     )
     report["comparison_mode"] = True
 
@@ -583,7 +647,7 @@ def _format_investigation_document(
     report: dict[str, Any],
 ) -> str:
     """Turn a structured investigation report into readable DataHub Markdown."""
-    title = report.get("title") or f"AirTrace investigation — {district_name}"
+    title = report.get("title") or f"AerX investigation — {district_name}"
     lines = [
         f"# {title}",
         "",
@@ -708,7 +772,7 @@ def _fallback_agent_result(
     }
     datahub_write = save_investigation_document(
         _format_investigation_document(district_name, prompt, report),
-        title=f"AirTrace investigation — {district_name}",
+        title=f"AerX investigation — {district_name}",
     )
     tool_trace.append(_trace_item("save_investigation_to_datahub", datahub_write))
     saved = save_investigation(
@@ -729,7 +793,7 @@ def run_district_agent(
 ) -> dict[str, Any]:
     """Let Gemini select bounded tools, then persist a review-only outcome."""
     system_instruction = """
-You are the AirTrace investigation agent for Hanoi. You must first inspect
+You are the AerX investigation agent for Hanoi. You must first inspect
 DataHub context and district evidence using available tools. You may inspect
 district history and the transparent hypothesis assessment if useful. DataHub
 contracts tell you which source is district-level, city-wide, modelled, or only
@@ -748,10 +812,13 @@ After tools return, output JSON only:
 }
 Use cautious wording. CAMS is a model estimate, not a local sensor. Never call
 CAMS data a sensor, station, monitor, or measurement from an active district.
+NASA FIRMS VIIRS data are satellite thermal detections, not confirmed fires or
+proof of an emissions source. Treat upwind detections only as a cautious clue.
 After you receive the evidence, select the 4–8 most decision-relevant fact IDs
 from the bounded evidence package. The application will display only those real
 values and their source labels. Always select district_aqi, district_pm25, and
-traffic_speed; use the remaining slots for the strongest contextual evidence.
+traffic_speed; use the remaining slots for the strongest contextual evidence,
+including fire_context when recent satellite detections are relevant.
 Never write a value or source label yourself. For each potential cause, include
 only evidence that is actually returned by the allowed tools.
 """.strip()
@@ -762,9 +829,10 @@ only evidence that is actually returned by the allowed tools.
             "analysis, not a list of numbers. Explain what the AQI comparison means (a higher "
             "AQI means worse modelled air quality; equal AQIs mean this model does not show a "
             "current difference), what PM2.5 means (fine particle pollution), and whether the "
-            "wind and traffic values support a meaningful contextual difference. Lower wind can "
+            "wind, traffic, and recent FIRMS values support a meaningful contextual difference. Lower wind can "
             "limit dispersion; traffic speed compared with free-flow speed describes one road's "
-            "flow only. Never treat wind or traffic as proof of a pollution source. If evidence "
+            "flow only. FIRMS detections are thermal anomalies, not confirmed fires. Never treat wind, traffic, "
+            "or FIRMS as proof of a pollution source. If evidence "
             "is the same or too limited, say that plainly. Explain only differences supported by "
             "the bounded evidence. Keep summary to two or three concise sentences; do not repeat "
             "every number because the fact cards show them. In potential_causes, return two or "
@@ -886,7 +954,7 @@ only evidence that is actually returned by the allowed tools.
                     "parts": [
                         {
                             "text": (
-                                "Policy-required evidence package collected by AirTrace. "
+                                "Policy-required evidence package collected by AerX. "
                                 "Use it as the authoritative data for your final JSON:\n"
                                 + json.dumps(required_evidence, default=str)
                             )
@@ -974,7 +1042,7 @@ only evidence that is actually returned by the allowed tools.
 
     datahub_write = save_investigation_document(
         _format_investigation_document(district_name, prompt, report),
-        title=f"AirTrace investigation — {district_name}",
+        title=f"AerX investigation — {district_name}",
     )
     tool_trace.append(_trace_item("save_investigation_to_datahub", datahub_write))
     saved = save_investigation(

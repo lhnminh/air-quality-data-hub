@@ -137,8 +137,8 @@ def test_verified_facts_always_include_honestly_labelled_traffic():
             "source": "Open-Meteo CAMS model estimate",
         },
         {
-            "label": "Traffic on Tran Quang Khai",
-            "value": "21.0 km/h (free flow 38.0 km/h)",
+            "label": "Traffic across 1 sampled road(s) in Hoan Kiem",
+            "value": "21.00 km/h (free flow 38.00 km/h)",
             "source": "TomTom Traffic Flow",
         },
         {
@@ -153,6 +153,27 @@ def test_verified_facts_always_include_honestly_labelled_traffic():
         },
     ]
     assert "not ground-sensor readings" in report["data_quality"]
+
+
+def test_verified_facts_promote_a_real_satellite_detection_and_round_traffic():
+    report = {"selected_fact_ids": ["wind"], "numeric_summary": [], "data_quality": "unverified"}
+
+    agent._apply_verified_facts(
+        report,
+        {
+            "district_name": "Hoan Kiem",
+            "district_us_aqi": 159,
+            "district_pm2_5_ug_m3": 156.5,
+            "traffic_current_speed_kmh": 29.33333333,
+            "traffic_free_flow_speed_kmh": 29.33333333,
+            "recent_fire_detection_count": 2,
+            "upwind_fire_detection_count": 1,
+        },
+    )
+
+    values = {fact["label"]: fact["value"] for fact in report["numeric_summary"]}
+    assert values["Traffic across 1 sampled road(s) in Hoan Kiem"] == "29.33 km/h (free flow 29.33 km/h)"
+    assert values["Recent nearby NASA FIRMS detections for Hoan Kiem"] == "2 nearby; 1 upwind"
 
 
 def test_inspection_summary_starts_with_verified_aqi_history_and_aqi_meaning():
@@ -208,8 +229,8 @@ def test_comparison_keeps_both_districts_source_controlled():
 
     assert report["title"] == "Air-quality comparison — Dong Da vs Ba Dinh"
     assert "Dong Da has the higher" in report["summary"]
-    assert len(report["numeric_summary"]) == 8
-    assert report["numeric_summary"][-1]["source"] == "TomTom Traffic Flow"
+    assert len(report["numeric_summary"]) == 10
+    assert report["numeric_summary"][-1]["source"] == "NASA FIRMS VIIRS satellite thermal detections"
     assert [item["label"] for item in report["numeric_summary"]] == [
         "Dong Da modelled US AQI",
         "Ba Dinh modelled US AQI",
@@ -217,8 +238,10 @@ def test_comparison_keeps_both_districts_source_controlled():
         "Ba Dinh modelled PM2.5",
         "Wind in Dong Da",
         "Wind in Ba Dinh",
-        "Traffic on Tay Son",
-        "Traffic on Kim Ma",
+        "Traffic across 1 sampled road(s) in Dong Da",
+        "Traffic across 1 sampled road(s) in Ba Dinh",
+        "NASA FIRMS nearby/upwind detections for Dong Da",
+        "NASA FIRMS nearby/upwind detections for Ba Dinh",
     ]
     assert "CAMS model estimates" in report["comparison_note"]
 

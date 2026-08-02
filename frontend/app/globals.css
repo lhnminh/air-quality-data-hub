@@ -1718,6 +1718,53 @@ a:focus-visible {
   width: 23px;
 }
 
+/* Brand asset only: this preserves the redesign's existing header dimensions. */
+.brand-mark svg {
+  display: block;
+  height: 40px;
+  overflow: visible;
+  width: 40px;
+}
+
+.brand-oxygen-shell {
+  fill: none;
+  stroke: #253c5b;
+  stroke-linecap: round;
+  stroke-width: 2.8;
+}
+
+.brand-oxygen-orbit {
+  fill: none;
+  opacity: 0.75;
+  stroke: #43b5d7;
+  stroke-linecap: round;
+  stroke-width: 2.1;
+}
+
+.brand-wind-main,
+.brand-wind-echo {
+  fill: none;
+  stroke: #182a44;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brand-wind-main {
+  stroke-width: 2.7;
+}
+
+.brand-wind-echo {
+  opacity: 0.85;
+  stroke: #5f8fa8;
+  stroke-width: 2.1;
+}
+
+.brand-air-node {
+  fill: #43b5d7;
+  stroke: #f6f7f3;
+  stroke-width: 1.3;
+}
+
 .brand strong {
   font-size: 22px;
   font-weight: 850;
@@ -2782,8 +2829,35 @@ h2 {
 }
 
 @media (min-width: 1181px) {
+  html,
   body {
+    height: 100%;
     overflow: hidden;
+  }
+
+  .app-shell {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .workspace.lab-workspace {
+    height: calc(100dvh - 76px);
+    min-height: 0;
+  }
+
+  /*
+   * The graph is the naturally flexible area of the investigation workspace.
+   * It fills a large display, then gives up space on a short desktop window so
+   * the DataHub status, live progress state, and composer stay in view.
+   */
+  .graph-view .evidence-graph {
+    flex-basis: 0;
+    min-height: 0;
+  }
+
+  .graph-stage {
+    min-height: clamp(130px, 27vh, 300px);
   }
 }
 

@@ -1,5 +1,7 @@
 import json
+import math
 import os
+from datetime import UTC, datetime
 from typing import Any
 
 import psycopg
@@ -270,6 +272,23 @@ def get_recent_traffic_observations(limit: int = 20) -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def get_recent_fire_observations(limit: int = 100) -> list[dict[str, Any]]:
+    """Return recent raw FIRMS records for transparent API/debug inspection."""
+    safe_limit = min(max(limit, 1), 500)
+    query = """
+        SELECT source, satellite, observed_at, latitude, longitude, confidence,
+               fire_radiative_power_mw, brightness_kelvin, daynight, collected_at
+        FROM fire_observations
+        ORDER BY observed_at DESC
+        LIMIT %s
+    """
+    with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, [safe_limit])
+            rows = cursor.fetchall()
+    return [dict(row) for row in rows]
+
+
 def get_district_investigation_context(district_name: str) -> dict[str, Any] | None:
     """Return the latest bounded evidence package for one selected district."""
     query = """
@@ -302,19 +321,26 @@ def get_district_investigation_context(district_name: str) -> dict[str, Any] | N
             ORDER BY observed_at DESC
             LIMIT 1
         ),
-        district_traffic AS (
-            SELECT
-                observed_at AS traffic_observed_at,
-                road_name AS traffic_road_name,
-                current_speed_kmh AS traffic_current_speed_kmh,
-                free_flow_speed_kmh AS traffic_free_flow_speed_kmh,
-                congestion_percent AS traffic_congestion_percent,
-                confidence AS traffic_confidence,
-                road_closure AS traffic_road_closure
+        latest_traffic_time AS (
+            SELECT MAX(observed_at) AS observed_at
             FROM traffic_observations
             WHERE district_name = %s
-            ORDER BY observed_at DESC
-            LIMIT 1
+        ),
+        district_traffic AS (
+            SELECT
+                MAX(observed_at) AS traffic_observed_at,
+                CONCAT('Representative district sample (', COUNT(*), ' roads)') AS traffic_road_name,
+                STRING_AGG(road_name, ', ' ORDER BY road_name) AS traffic_roads,
+                AVG(current_speed_kmh) AS traffic_current_speed_kmh,
+                AVG(free_flow_speed_kmh) AS traffic_free_flow_speed_kmh,
+                AVG(congestion_percent) AS traffic_congestion_percent,
+                MAX(congestion_percent) AS traffic_max_congestion_percent,
+                COUNT(*)::INTEGER AS traffic_sample_count,
+                MIN(confidence) AS traffic_confidence,
+                BOOL_OR(road_closure) AS traffic_road_closure
+            FROM traffic_observations
+            WHERE district_name = %s
+              AND observed_at = (SELECT observed_at FROM latest_traffic_time)
         ),
         city_air AS (
             SELECT
@@ -338,10 +364,99 @@ def get_district_investigation_context(district_name: str) -> dict[str, Any] | N
     """
     with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
         with connection.cursor() as cursor:
-            cursor.execute(query, [district_name, district_name, district_name, district_name])
+            cursor.execute(query, [district_name, district_name, district_name, district_name, district_name])
             row = cursor.fetchone()
 
-    return dict(row) if row else None
+    if not row:
+        return None
+    context = dict(row)
+    context.update(_recent_fire_context(district_name, context.get("wind_direction_degrees")))
+    return context
+
+
+def _district_coordinates(district_name: str) -> tuple[float, float] | None:
+    for district in DISTRICTS:
+        if district["name"] == district_name:
+            return district["latitude"], district["longitude"]
+    return None
+
+
+def _distance_and_bearing(
+    origin_latitude: float,
+    origin_longitude: float,
+    target_latitude: float,
+    target_longitude: float,
+) -> tuple[float, float]:
+    """Return great-circle distance (km) and bearing from origin to target."""
+    latitude_1 = math.radians(origin_latitude)
+    latitude_2 = math.radians(target_latitude)
+    delta_latitude = math.radians(target_latitude - origin_latitude)
+    delta_longitude = math.radians(target_longitude - origin_longitude)
+    a = (
+        math.sin(delta_latitude / 2) ** 2
+        + math.cos(latitude_1) * math.cos(latitude_2) * math.sin(delta_longitude / 2) ** 2
+    )
+    distance_km = 6371 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    bearing = math.degrees(
+        math.atan2(
+            math.sin(delta_longitude) * math.cos(latitude_2),
+            math.cos(latitude_1) * math.sin(latitude_2)
+            - math.sin(latitude_1) * math.cos(latitude_2) * math.cos(delta_longitude),
+        )
+    )
+    return distance_km, (bearing + 360) % 360
+
+
+def _recent_fire_context(district_name: str, wind_from_degrees: Any) -> dict[str, Any]:
+    """Summarise recent nearby FIRMS detections without calling them confirmed fires."""
+    coordinates = _district_coordinates(district_name)
+    if not coordinates:
+        return {"recent_fire_detection_count": 0, "upwind_fire_detection_count": 0}
+    latitude, longitude = coordinates
+    query = """
+        SELECT observed_at, latitude, longitude, confidence, fire_radiative_power_mw, source, satellite
+        FROM fire_observations
+        WHERE observed_at >= CURRENT_TIMESTAMP - INTERVAL '72 hours'
+        ORDER BY observed_at DESC
+        LIMIT 200
+    """
+    try:
+        with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query)
+                rows = cursor.fetchall()
+    except psycopg.Error:
+        # Allows the app to continue until the migration has been run once.
+        return {"recent_fire_detection_count": 0, "upwind_fire_detection_count": 0}
+
+    nearby: list[dict[str, Any]] = []
+    for row in rows:
+        distance_km, bearing_degrees = _distance_and_bearing(
+            latitude, longitude, row["latitude"], row["longitude"]
+        )
+        if distance_km <= 75:
+            nearby.append({**dict(row), "distance_km": distance_km, "bearing_degrees": bearing_degrees})
+    wind = _as_float(wind_from_degrees)
+    upwind = [
+        detection
+        for detection in nearby
+        if wind is not None
+        and min(abs(detection["bearing_degrees"] - wind), 360 - abs(detection["bearing_degrees"] - wind)) <= 45
+    ]
+    nearest = min(nearby, key=lambda detection: detection["distance_km"], default=None)
+    return {
+        "recent_fire_detection_count": len(nearby),
+        "upwind_fire_detection_count": len(upwind),
+        "nearest_fire_distance_km": round(nearest["distance_km"], 1) if nearest else None,
+        "nearest_fire_bearing_degrees": round(nearest["bearing_degrees"]) if nearest else None,
+        "nearest_fire_observed_at": nearest["observed_at"] if nearest else None,
+        "nearest_fire_confidence": nearest["confidence"] if nearest else None,
+        "nearest_fire_frp_mw": nearest["fire_radiative_power_mw"] if nearest else None,
+    }
+
+
+def _as_float(value: Any) -> float | None:
+    return float(value) if isinstance(value, (float, int)) else None
 
 
 def get_district_history(district_name: str, limit: int = 24) -> list[dict[str, Any]]:
@@ -394,7 +509,7 @@ def save_investigation(
         ) VALUES (%s, %s, %s, %s::jsonb)
     """
     action_description = (
-        f"Review the AirTrace evidence package for {district_name} before any public alert "
+        f"Review the AerX evidence package for {district_name} before any public alert "
         "or operational response."
     )
     with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
@@ -848,4 +963,57 @@ def save_tomtom_traffic_observation(
             cursor.execute(query, values)
             inserted_row = cursor.fetchone()
 
+    return inserted_row is not None
+
+
+def save_firms_fire_observation(
+    detection: dict[str, str], source_dataset: str, collected_at: str
+) -> bool:
+    """Persist one NASA FIRMS VIIRS thermal detection with its source payload."""
+    date = detection.get("acq_date")
+    time = str(detection.get("acq_time", "")).zfill(4)
+    if not date or len(time) != 4:
+        raise ValueError("NASA FIRMS detection is missing acquisition date or time")
+    observed_at = datetime.strptime(f"{date} {time}", "%Y-%m-%d %H%M").replace(tzinfo=UTC)
+    latitude = float(detection["latitude"])
+    longitude = float(detection["longitude"])
+    satellite = detection.get("satellite") or source_dataset
+    external_id = f"firms:{source_dataset}:{latitude:.4f}:{longitude:.4f}:{observed_at.isoformat()}"
+    source_labels = {
+        "VIIRS_SNPP_NRT": "NASA FIRMS VIIRS S-NPP",
+        "VIIRS_NOAA20_NRT": "NASA FIRMS VIIRS NOAA-20",
+    }
+    source_label = source_labels.get(source_dataset, f"NASA FIRMS {source_dataset}")
+    query = """
+        INSERT INTO fire_observations (
+            external_id, source, satellite, observed_at, latitude, longitude,
+            confidence, fire_radiative_power_mw, brightness_kelvin, daynight,
+            raw_response, collected_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s)
+        ON CONFLICT (external_id) DO UPDATE SET
+            collected_at = EXCLUDED.collected_at,
+            confidence = EXCLUDED.confidence,
+            fire_radiative_power_mw = EXCLUDED.fire_radiative_power_mw,
+            raw_response = EXCLUDED.raw_response
+        RETURNING fire_observation_id
+    """
+    values = [
+        external_id,
+        source_label,
+        satellite,
+        observed_at,
+        latitude,
+        longitude,
+        detection.get("confidence"),
+        float(detection["frp"]) if detection.get("frp") else None,
+        float(detection["bright_ti4"]) if detection.get("bright_ti4") else None,
+        detection.get("daynight"),
+        json.dumps(detection),
+        collected_at,
+    ]
+    with psycopg.connect(get_database_url()) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query, values)
+            inserted_row = cursor.fetchone()
     return inserted_row is not None

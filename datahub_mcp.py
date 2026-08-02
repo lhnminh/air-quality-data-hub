@@ -33,8 +33,13 @@ AIRTRACE_DATA_CONTRACTS = {
     },
     "traffic_observations": {
         "source_label": "TomTom Traffic Flow",
-        "scope": "one representative road-flow point per district; context only",
+        "scope": "representative multi-road district traffic sample; context only, not a vehicle count or proof of cause",
         "required_fields": ["district_name", "observed_at", "road_name", "congestion_percent"],
+    },
+    "fire_observations": {
+        "source_label": "NASA FIRMS VIIRS thermal detections",
+        "scope": "recent satellite thermal anomalies near Hanoi; not confirmed fires or proof of a pollution source",
+        "required_fields": ["observed_at", "latitude", "longitude", "satellite", "confidence"],
     },
 }
 
@@ -176,7 +181,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
         "search",
         {
             "query": "/q air_quality_observations OR weather_observations OR "
-            "modeled_air_quality_observations OR traffic_observations",
+            "modeled_air_quality_observations OR traffic_observations OR fire_observations",
             "filter": "entity_type = dataset AND platform = postgres",
             "num_results": 20,
         },
@@ -225,7 +230,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
     return {
         "status": "connected",
         "summary": (
-            f"DataHub MCP verified {verified_count}/{len(assets)} AirTrace source "
+            f"DataHub MCP verified {verified_count}/{len(assets)} AerX source "
             "contracts against live PostgreSQL schemas."
         ),
         "assets": assets,
@@ -234,7 +239,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
 
 
 def save_investigation_document(
-    document: str, title: str = "AirTrace investigation"
+    document: str, title: str = "AerX investigation"
 ) -> dict[str, Any]:
     """Write a concise, review-only investigation record through DataHub's REST API."""
     if os.environ.get("DATAHUB_MCP_WRITE_ENABLED") != "true":
@@ -271,7 +276,7 @@ def save_investigation_document(
             subtype="Reference",
             show_in_global_context=True,
             related_assets=related_assets,
-            custom_properties={"created_by": "AirTrace investigation agent"},
+            custom_properties={"created_by": "AerX investigation agent"},
         )
         # Explicitly emit this aspect even though `True` is DataHub's SDK
         # default. The Documents sidebar in the local OSS UI filters on the

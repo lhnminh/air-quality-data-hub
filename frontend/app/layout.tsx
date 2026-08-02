@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "AirTrace Vietnam",
+  title: "AerX — Hanoi Air Intelligence",
   description: "Hanoi air-quality observations and source investigation.",
   icons: {
     icon: "/favicon.svg",

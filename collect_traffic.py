@@ -18,17 +18,34 @@ TOMTOM_FLOW_URL = (
     "https://api.tomtom.com/traffic/services/4/flowSegmentData/absolute/10/json"
 )
 
-# One named, high-traffic road point per pilot district. These are traffic
-# context points, not a claim that every road in the district has the same flow.
+# Three deliberately different road segments per pilot district: a major
+# corridor, a central/commercial corridor, and a local comparison road. These
+# are a representative sample, not a district-wide vehicle count.
 TRAFFIC_LOCATIONS = [
     {"district_name": "Tay Ho", "road_name": "Vo Chi Cong", "latitude": 21.0627, "longitude": 105.8059},
+    {"district_name": "Tay Ho", "road_name": "Lac Long Quan", "latitude": 21.0620, "longitude": 105.8119},
+    {"district_name": "Tay Ho", "road_name": "Au Co", "latitude": 21.0690, "longitude": 105.8290},
     {"district_name": "Long Bien", "road_name": "Nguyen Van Cu", "latitude": 21.0437, "longitude": 105.8726},
+    {"district_name": "Long Bien", "road_name": "Nguyen Van Linh", "latitude": 21.0190, "longitude": 105.8980},
+    {"district_name": "Long Bien", "road_name": "Co Linh", "latitude": 21.0300, "longitude": 105.8910},
     {"district_name": "Ba Dinh", "road_name": "Kim Ma", "latitude": 21.0315, "longitude": 105.8214},
+    {"district_name": "Ba Dinh", "road_name": "Nguyen Thai Hoc", "latitude": 21.0280, "longitude": 105.8300},
+    {"district_name": "Ba Dinh", "road_name": "Hoang Hoa Tham", "latitude": 21.0460, "longitude": 105.8260},
     {"district_name": "Cau Giay", "road_name": "Xuan Thuy", "latitude": 21.0380, "longitude": 105.7827},
+    {"district_name": "Cau Giay", "road_name": "Tran Thai Tong", "latitude": 21.0340, "longitude": 105.7920},
+    {"district_name": "Cau Giay", "road_name": "Pham Hung", "latitude": 21.0290, "longitude": 105.7800},
     {"district_name": "Hoan Kiem", "road_name": "Tran Quang Khai", "latitude": 21.0273, "longitude": 105.8586},
+    {"district_name": "Hoan Kiem", "road_name": "Hai Ba Trung", "latitude": 21.0220, "longitude": 105.8550},
+    {"district_name": "Hoan Kiem", "road_name": "Le Duan", "latitude": 21.0230, "longitude": 105.8460},
     {"district_name": "Dong Da", "road_name": "Tay Son", "latitude": 21.0068, "longitude": 105.8262},
+    {"district_name": "Dong Da", "road_name": "Nguyen Luong Bang", "latitude": 21.0110, "longitude": 105.8270},
+    {"district_name": "Dong Da", "road_name": "Chua Boc", "latitude": 21.0050, "longitude": 105.8270},
     {"district_name": "Hai Ba Trung", "road_name": "Dai Co Viet", "latitude": 21.0042, "longitude": 105.8505},
+    {"district_name": "Hai Ba Trung", "road_name": "Minh Khai", "latitude": 21.0010, "longitude": 105.8670},
+    {"district_name": "Hai Ba Trung", "road_name": "Bach Mai", "latitude": 21.0000, "longitude": 105.8500},
     {"district_name": "Thanh Xuan", "road_name": "Nguyen Trai", "latitude": 20.9977, "longitude": 105.8095},
+    {"district_name": "Thanh Xuan", "road_name": "Khuat Duy Tien", "latitude": 21.0000, "longitude": 105.8110},
+    {"district_name": "Thanh Xuan", "road_name": "Le Van Luong", "latitude": 21.0000, "longitude": 105.8080},
 ]
 
 

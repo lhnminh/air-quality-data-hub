@@ -48,8 +48,10 @@ type GraphEdge = {
   labelDy?: number;
 };
 
-const GRAPH_WIDTH = 520;
-const GRAPH_HEIGHT = 390;
+// Preserve the original left-to-right investigation flow while giving the
+// additional satellite source and edge annotations their own room.
+const GRAPH_WIDTH = 600;
+const GRAPH_HEIGHT = 470;
 
 const nodes: GraphNode[] = [
   {
@@ -81,6 +83,13 @@ const nodes: GraphNode[] = [
     detail: "Representative TomTom road-flow context used to test—not prove—the traffic hypothesis.",
   },
   {
+    id: "fire",
+    label: "Satellite heat",
+    shortLabel: "FR",
+    kind: "source",
+    detail: "NASA FIRMS VIIRS satellite thermal detections within 75 km provide a cautious upwind-burning clue, not confirmed fires or proof of an emissions source.",
+  },
+  {
     id: "database",
     label: "Database",
     shortLabel: "DB",
@@ -96,7 +105,7 @@ const nodes: GraphNode[] = [
   },
   {
     id: "agent",
-    label: "AirTrace agent",
+    label: "AerX agent",
     shortLabel: "AI",
     kind: "agent",
     detail: "Gemini selects from allowlisted tools and explains only verified, bounded facts.",
@@ -111,29 +120,32 @@ const nodes: GraphNode[] = [
 ];
 
 const initialPositions: Record<string, Point> = {
-  iqair: { x: 55, y: 64 },
-  weather: { x: 55, y: 148 },
-  cams: { x: 55, y: 232 },
-  traffic: { x: 55, y: 316 },
-  datahub: { x: 205, y: 112 },
-  database: { x: 205, y: 268 },
-  agent: { x: 320, y: 190 },
-  report: { x: 450, y: 190 },
+  iqair: { x: 65, y: 58 },
+  weather: { x: 65, y: 140 },
+  cams: { x: 65, y: 222 },
+  traffic: { x: 65, y: 304 },
+  fire: { x: 65, y: 386 },
+  datahub: { x: 255, y: 118 },
+  database: { x: 255, y: 306 },
+  agent: { x: 400, y: 206 },
+  report: { x: 540, y: 206 },
 };
 
 const edges: GraphEdge[] = [
-  { source: "iqair", target: "datahub", label: "catalogued", labelDy: -8 },
+  { source: "iqair", target: "datahub", label: "catalogued", labelDx: 6, labelDy: -14 },
   { source: "weather", target: "datahub", label: "catalogued", hideLabel: true },
   { source: "cams", target: "datahub", label: "catalogued", hideLabel: true },
   { source: "traffic", target: "datahub", label: "catalogued", hideLabel: true },
+  { source: "fire", target: "datahub", label: "catalogued", hideLabel: true },
   { source: "iqair", target: "database", label: "stored", labelDy: -8 },
   { source: "weather", target: "database", label: "stored", hideLabel: true },
   { source: "cams", target: "database", label: "stored", hideLabel: true },
   { source: "traffic", target: "database", label: "stored", hideLabel: true },
-  { source: "datahub", target: "agent", label: "governs", labelDx: 20, labelDy: 26 },
-  { source: "database", target: "agent", label: "evidence", labelDy: 12 },
-  { source: "agent", target: "report", label: "explains", labelDy: -8 },
-  { source: "report", target: "datahub", label: "writes back", labelDy: -14 },
+  { source: "fire", target: "database", label: "stored", hideLabel: true },
+  { source: "datahub", target: "agent", label: "governs", labelDx: -8, labelDy: 33 },
+  { source: "database", target: "agent", label: "evidence", labelDx: 16, labelDy: 12 },
+  { source: "agent", target: "report", label: "explains", labelDy: -10 },
+  { source: "report", target: "datahub", label: "writes back", labelDy: -12 },
 ];
 
 function sourceStatus(mode: SourceMode) {
@@ -184,6 +196,7 @@ export default function EvidenceGraph({
     [toolTrace],
   );
   const dataHubTrace = traceByName.get("get_datahub_context");
+  const assessmentTrace = traceByName.get("evaluate_district_hypotheses");
   const writeBackTrace = traceByName.get("save_investigation_to_datahub");
 
   const nodeStatuses: Record<string, string> = {
@@ -191,6 +204,7 @@ export default function EvidenceGraph({
     weather: sourceStatus(weatherMode),
     cams: sourceStatus(modeledAirQualityMode),
     traffic: reportReady ? "ready" : "waiting",
+    fire: assessmentTrace?.status ?? (isGeneratingReport ? "running" : "waiting"),
     database: dataMode === "loading" ? "loading" : "ready",
     datahub: dataHubTrace?.status ?? (isGeneratingReport ? "running" : "ready"),
     agent: isGeneratingReport ? "running" : reportReady ? "ready" : "waiting",
@@ -424,7 +438,11 @@ export default function EvidenceGraph({
                     {node.shortLabel}
                   </text>
                   <circle className="graph-node-status" cx={node.kind === "datahub" ? 25 : 22} cy={node.kind === "datahub" ? -22 : -19} r="6" />
-                  <text className="graph-node-label" textAnchor="middle" y={node.kind === "datahub" ? 51 : 45}>
+                  <text
+                    className="graph-node-label"
+                    textAnchor="middle"
+                    y={node.kind === "datahub" ? 51 : 45}
+                  >
                     {node.label}
                   </text>
                 </g>

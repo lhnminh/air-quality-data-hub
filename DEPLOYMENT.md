@@ -1,6 +1,6 @@
-# AirTrace deployment guide
+# AerX deployment guide
 
-AirTrace uses two Vercel projects from the same GitHub repository:
+AerX uses two Vercel projects from the same GitHub repository:
 
 - `airtrace-api` runs the Python FastAPI application.
 - `airtrace-frontend` runs the Next.js dashboard.
@@ -223,7 +223,7 @@ From the project root on the host Mac:
 uv run python collect_traffic.py
 ```
 
-The collector calls TomTom Traffic Flow at one representative major-road point
+The collector calls TomTom Traffic Flow at three representative road segments
 per pilot district and stores the current and free-flow speeds in the database. Add
 `TOMTOM_API_KEY` to the host's `.env`; never add it to the frontend or commit it.
 Run DataHub ingestion again after the first collection so it catalogs the new
@@ -331,7 +331,7 @@ URL for judging. Support for multiple preview origins can be added later.
 
 ## Agent safety boundary
 
-AirTrace never gives Gemini database credentials or arbitrary SQL access. Gemini
+AerX never gives Gemini database credentials or arbitrary SQL access. Gemini
 can only request the backend's allowlisted tools for the selected district. Its
 only automated action is to create an investigation marked
 `awaiting_human_review`; public alerts and operational actions require a human.
