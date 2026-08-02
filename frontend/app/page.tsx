@@ -30,7 +30,13 @@ type HistoryDisplayObservation = {
 type InvestigationReport = {
   title: string;
   summary: string;
-  numeric_summary: Array<{ label: string; value: string; source: string }>;
+  numeric_summary: Array<{
+    label: string;
+    value: string;
+    source: string;
+    kind?: string;
+    severity?: string;
+  }>;
   potential_causes: Array<{ label: string; detail: string }>;
   data_quality: string;
   ai_status?: string;
@@ -54,6 +60,11 @@ type AgentToolTrace = {
   tool_name: string;
   status: string;
   summary: string;
+};
+
+type EvidenceSourceStatus = {
+  available_source_count: number;
+  sources: Array<{ id: string; label: string; status: string }>;
 };
 
 // Loading the map only in the browser keeps MapLibre away from server rendering.
@@ -132,6 +143,17 @@ async function requestDistrictStatuses() {
 
     const result = (await response.json()) as { districts: DistrictStatus[] };
     return result.districts;
+  } catch {
+    return null;
+  }
+}
+
+async function requestDistrictEvidenceStatus(districtName: string) {
+  try {
+    const query = new URLSearchParams({ district_name: districtName });
+    const response = await fetch(`${apiUrl}/api/district-evidence-status?${query}`);
+    if (!response.ok) return null;
+    return (await response.json()) as EvidenceSourceStatus;
   } catch {
     return null;
   }
@@ -249,6 +271,8 @@ export default function Home() {
     DistrictAirQualityHistoryObservation[]
   >([]);
   const [districtStatuses, setDistrictStatuses] = useState<DistrictStatus[]>([]);
+  const [evidenceSourceStatus, setEvidenceSourceStatus] =
+    useState<EvidenceSourceStatus | null>(null);
   const [dataMode, setDataMode] = useState<DataMode>("loading");
   const [weatherMode, setWeatherMode] = useState<DataMode>("loading");
   const [modeledAirQualityMode, setModeledAirQualityMode] =
@@ -313,14 +337,29 @@ export default function Home() {
   );
 
   const loadDashboard = useCallback(async () => {
-    const results = await Promise.all([
+    const [
+      observationResult,
+      weatherResult,
+      modeledResult,
+      districtResult,
+      historyResult,
+      evidenceResult,
+    ] = await Promise.all([
       requestObservations(),
       requestWeather(),
       requestModeledAirQuality(),
       requestDistrictStatuses(),
       requestDistrictAirQualityHistory(selectedDistrictName, historyDays),
+      requestDistrictEvidenceStatus(selectedDistrictName),
     ]);
-    applyResults(...results);
+    applyResults(
+      observationResult,
+      weatherResult,
+      modeledResult,
+      districtResult,
+      historyResult,
+    );
+    setEvidenceSourceStatus(evidenceResult);
     setIsRefreshing(false);
   }, [applyResults, historyDays, selectedDistrictName]);
 
@@ -333,8 +372,25 @@ export default function Home() {
       requestModeledAirQuality(),
       requestDistrictStatuses(),
       requestDistrictAirQualityHistory(selectedDistrictName, historyDays),
-    ]).then((results) => {
-      if (!cancelled) applyResults(...results);
+      requestDistrictEvidenceStatus(selectedDistrictName),
+    ]).then(([
+      observationResult,
+      weatherResult,
+      modeledResult,
+      districtResult,
+      historyResult,
+      evidenceResult,
+    ]) => {
+      if (!cancelled) {
+        applyResults(
+          observationResult,
+          weatherResult,
+          modeledResult,
+          districtResult,
+          historyResult,
+        );
+        setEvidenceSourceStatus(evidenceResult);
+      }
     });
 
     return () => {
@@ -524,8 +580,10 @@ export default function Home() {
             </article>
             <article className="metric-cell metric-sources">
               <span>Evidence</span>
-              <strong>5</strong>
-              <small>evidence sources</small>
+              <strong>{evidenceSourceStatus?.available_source_count ?? "—"}</strong>
+              <small>
+                {evidenceSourceStatus ? "evidence sources" : "checking sources"}
+              </small>
             </article>
           </section>
 
@@ -735,7 +793,7 @@ export default function Home() {
               <article className="investigation-report" role="tabpanel" aria-label="AerX report">
                 <div className="report-toolbar">
                   <button type="button" onClick={() => setInvestigationView("graph")}>← Back to node graph</button>
-                  <span><i />Evidence-backed · {toolTrace.length || 5} trace checks completed</span>
+                  <span><i />Evidence-backed · {toolTrace.length} tool checks completed</span>
                 </div>
                 <div className="report-document">
                   <span className="report-eyebrow">AerX report</span>
@@ -744,7 +802,14 @@ export default function Home() {
 
                   <dl className="report-metrics">
                     {report.numeric_summary.map((metric) => (
-                      <div key={`${metric.label}-${metric.source}`}>
+                      <div
+                        key={`${metric.label}-${metric.source}`}
+                        className={[
+                          "report-metric",
+                          metric.kind ? `metric-${metric.kind}` : "",
+                          metric.severity ? `metric-${metric.severity}` : "",
+                        ].filter(Boolean).join(" ")}
+                      >
                         <dt>{metric.label}</dt>
                         <dd>{metric.value}</dd>
                         <small>{metric.source}</small>

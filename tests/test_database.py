@@ -67,6 +67,16 @@ def test_save_observation(fake_cursor, iqair_result):
     assert values[8] == "p2"
 
 
+def test_save_firms_collection_run(fake_cursor):
+    database.save_firms_collection_run(
+        "VIIRS_SNPP_NRT", 0, "2026-08-02T10:00:00+00:00"
+    )
+
+    query, values = fake_cursor.execute.call_args.args
+    assert "INSERT INTO fire_collection_runs" in query
+    assert values[:3] == ["VIIRS_SNPP_NRT", "succeeded", 0]
+
+
 def test_duplicate_observation_is_not_inserted(
     fake_cursor,
     iqair_result,

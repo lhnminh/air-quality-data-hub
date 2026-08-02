@@ -10,6 +10,7 @@ def test_vercel_fastapi_entrypoint_exists():
     assert "/api/modeled-air-quality" in paths
     assert "/api/city-air-quality-history" in paths
     assert "/api/district-air-quality-history" in paths
+    assert "/api/district-evidence-status" in paths
     assert "/api/traffic" in paths
     assert "/api/districts" in paths
     assert "/api/investigate" in paths

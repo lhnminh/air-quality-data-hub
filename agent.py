@@ -2,6 +2,7 @@
 
 import json
 import os
+from decimal import Decimal
 from statistics import median
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
@@ -199,7 +200,12 @@ def _trace_item(tool_name: str, result: dict[str, Any]) -> dict[str, Any]:
 
 
 def _as_number(value: Any) -> float | None:
-    return float(value) if isinstance(value, (float, int)) else None
+    # psycopg returns PostgreSQL NUMERIC aggregates as Decimal. In particular,
+    # an exact zero can arrive as Decimal("0E-20"), which is still a valid
+    # congestion reading rather than missing data.
+    if isinstance(value, bool):
+        return None
+    return float(value) if isinstance(value, (float, int, Decimal)) else None
 
 
 def _relative_to_history(current: Any, history: list[dict[str, Any]], field: str) -> float | None:
@@ -268,7 +274,16 @@ def _evaluate_district_hypotheses(
     fire_score = 5
     fire_evidence: list[str] = []
     fire_against: list[str] = []
-    if upwind_fire_count:
+    fire_status = context.get("fire_collection_status")
+    if fire_status not in {"checked", "partial"}:
+        fire_against.append(
+            "NASA FIRMS satellite heat context has not been successfully collected in the last 72 hours."
+        )
+    elif fire_status == "partial":
+        fire_against.append(
+            "NASA FIRMS satellite heat context is partial because one or more VIIRS feeds did not complete."
+        )
+    elif upwind_fire_count:
         fire_score += 45
         fire_evidence.append(
             f"NASA FIRMS reported {upwind_fire_count} recent satellite thermal detection(s) within 75 km in the wind-from direction."
@@ -326,10 +341,18 @@ def _evaluate_district_hypotheses(
     }
 
 
-def _value(value: Any, suffix: str = "") -> str:
+MAX_AGENT_FACTS = 12
+
+
+def _value(value: Any, suffix: str = "", *, whole: bool = False) -> str:
     if value is None:
         return "Not available"
-    return f"{value}{suffix}"
+    number = _as_number(value)
+    if number is None:
+        return f"{value}{suffix}"
+    if whole:
+        return f"{number:.0f}{suffix}"
+    return f"{_format_decimal(number)}{suffix}"
 
 
 def _format_decimal(value: Any, places: int = 2) -> str:
@@ -337,7 +360,7 @@ def _format_decimal(value: Any, places: int = 2) -> str:
     number = _as_number(value)
     if number is None:
         return str(value)
-    return f"{number:.{places}f}"
+    return f"{number:.{places}f}".rstrip("0").rstrip(".")
 
 
 def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
@@ -355,8 +378,10 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
     candidates = {
         "district_aqi": {
             "label": f"{district} modelled US AQI",
-            "value": _value(context.get("district_us_aqi")),
+            "value": _value(context.get("district_us_aqi"), whole=True),
             "source": "Open-Meteo CAMS model estimate",
+            "kind": "aqi",
+            "severity": _aqi_severity(context.get("district_us_aqi")),
         },
         "district_pm25": {
             "label": f"{district} modelled PM2.5",
@@ -380,7 +405,7 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
         },
         "city_aqi": {
             "label": "Hanoi city-wide US AQI",
-            "value": _value(context.get("city_aqi_us")),
+            "value": _value(context.get("city_aqi_us"), whole=True),
             "source": "IQAir city-wide feed",
         },
         "wind": {
@@ -388,7 +413,7 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
             "value": (
                 f"{_value(context.get('wind_speed_kmh'), ' km/h')}"
                 + (
-                    f" from {context['wind_direction_degrees']}°"
+                    f" from {_format_decimal(context['wind_direction_degrees'])}°"
                     if context.get("wind_direction_degrees") is not None
                     else ""
                 )
@@ -417,22 +442,37 @@ def _fact_candidates(context: dict[str, Any]) -> dict[str, dict[str, str]]:
         },
         "fire_context": {
             "label": f"Recent nearby NASA FIRMS detections for {district}",
-            "value": (
-                f"{context.get('recent_fire_detection_count', 0)} nearby; "
-                f"{context.get('upwind_fire_detection_count', 0)} upwind"
-            ),
+            "value": _fire_context_value(context),
             "source": "NASA FIRMS VIIRS satellite thermal detections",
         },
     }
     return candidates
 
 
+def _fire_context_value(context: dict[str, Any]) -> str:
+    """Keep the satellite card honest when a collection returned zero rows."""
+    status = context.get("fire_collection_status")
+    if status == "not_collected":
+        return "Not collected in the last 72 hours"
+    if status == "partial":
+        return "Partially collected; verify source status"
+    nearby = context.get("recent_fire_detection_count", 0)
+    upwind = context.get("upwind_fire_detection_count", 0)
+    suffix = " (NASA checked)" if status == "checked" else ""
+    return f"{nearby} nearby; {upwind} upwind{suffix}"
+
+
 def _default_fact_ids(candidates: dict[str, dict[str, str]]) -> list[str]:
     """Use a useful, honest first report if Gemini cannot make a valid selection."""
     preferred = [
-        "district_aqi", "district_pm25", "city_aqi", "wind", "humidity", "traffic_speed", "fire_context",
+        "district_aqi", "district_pm25", "wind", "humidity", "traffic_speed", "traffic_congestion",
     ]
     return [fact_id for fact_id in preferred if fact_id in candidates]
+
+
+def _fact_is_available(fact: dict[str, str]) -> bool:
+    """Do not let the model turn a missing database value into a report card."""
+    return fact.get("value") not in {"Not available", "No current reading"}
 
 
 def _verified_numeric_summary(
@@ -440,12 +480,20 @@ def _verified_numeric_summary(
 ) -> list[dict[str, str]]:
     """Accept Gemini's relevance choices while preserving source-controlled values."""
     candidates = _fact_candidates(context)
-    requested = selected_fact_ids or _default_fact_ids(candidates)
-    chosen = []
-    # AQI, PM2.5, and traffic provide the essential reading and context.
-    # Gemini chooses remaining cards; a positive satellite detection is promoted
-    # so a real potential fire/heat clue cannot be hidden by a model omission.
-    required_fact_ids = ("district_aqi", "district_pm25", "traffic_speed")
+    requested = [
+        fact_id
+        for fact_id in (selected_fact_ids or [])
+        if fact_id in candidates and _fact_is_available(candidates[fact_id])
+    ] or [
+        fact_id
+        for fact_id in _default_fact_ids(candidates)
+        if _fact_is_available(candidates[fact_id])
+    ]
+    chosen_ids: list[str] = []
+    # AQI and PM2.5 are the non-negotiable basis for an air-quality report.
+    # Everything else is selected by the model; positive satellite evidence is
+    # promoted so it cannot disappear from an otherwise valid investigation.
+    required_fact_ids = ("district_aqi", "district_pm25")
     fire_detected = int(context.get("recent_fire_detection_count") or 0) > 0
     prioritized_fact_ids = (
         *required_fact_ids,
@@ -453,11 +501,22 @@ def _verified_numeric_summary(
         *requested,
     )
     for fact_id in prioritized_fact_ids:
-        if fact_id in candidates and fact_id not in {item["id"] for item in chosen}:
-            chosen.append({"id": fact_id, **candidates[fact_id]})
-        if len(chosen) == 8:
+        if (
+            fact_id in candidates
+            and _fact_is_available(candidates[fact_id])
+            and fact_id not in chosen_ids
+        ):
+            chosen_ids.append(fact_id)
+        if len(chosen_ids) == MAX_AGENT_FACTS:
             break
-    return [{key: value for key, value in fact.items() if key != "id"} for fact in chosen]
+    # Group related evidence together after Gemini has chosen it. This is a
+    # presentation guardrail, not a hidden relevance decision.
+    order = (
+        "district_aqi", "district_pm25", "district_pm10", "district_no2", "district_ozone", "city_aqi",
+        "wind", "humidity", "rain", "traffic_speed", "traffic_congestion", "fire_context",
+    )
+    ordered_ids = [fact_id for fact_id in order if fact_id in chosen_ids]
+    return [candidates[fact_id] for fact_id in ordered_ids]
 
 
 def _apply_verified_facts(
@@ -547,54 +606,57 @@ def _prepend_inspection_evidence_lead(
     report["summary"] = f"{lead} {summary}".strip()
 
 
-def _comparison_facts(context: dict[str, Any]) -> list[dict[str, str]]:
-    """Return a compact, source-controlled counterpart snapshot for comparisons."""
-    district = context.get("district_name", "Comparison district")
-    road = context.get("traffic_road_name") or district
-    sample_count = int(context.get("traffic_sample_count") or 1)
-    speed = context.get("traffic_current_speed_kmh")
-    free_flow = context.get("traffic_free_flow_speed_kmh")
-    speed_value = (
-        f"{_format_decimal(speed)} km/h (free flow {_format_decimal(free_flow)} km/h)"
-        if speed is not None and free_flow is not None
-        else "No current reading"
+def _aqi_severity(value: Any) -> str:
+    aqi = _as_number(value)
+    if aqi is None:
+        return "unknown"
+    if aqi <= 50:
+        return "good"
+    if aqi <= 100:
+        return "moderate"
+    if aqi <= 150:
+        return "sensitive"
+    if aqi <= 200:
+        return "unhealthy"
+    return "very-unhealthy"
+
+
+def _comparison_fact_ids(primary: dict[str, Any], comparison: dict[str, Any], selected: list[str] | None) -> list[str]:
+    """Use Gemini's shared-fact choices, with a useful honest fallback."""
+    primary_candidates = _fact_candidates(primary)
+    comparison_candidates = _fact_candidates(comparison)
+    available = {
+        fact_id
+        for fact_id in set(primary_candidates) & set(comparison_candidates)
+        if _fact_is_available(primary_candidates[fact_id])
+        and _fact_is_available(comparison_candidates[fact_id])
+    }
+    requested = [item for item in (selected or []) if item in available]
+    if not requested:
+        requested = [
+            "district_aqi", "district_pm25", "wind", "humidity", "traffic_speed", "traffic_congestion"
+        ]
+    # A positive thermal detection deserves to be visible; absence remains
+    # available to Gemini as negative evidence but is not forced into a card.
+    if any(int(item.get("recent_fire_detection_count") or 0) > 0 for item in (primary, comparison)):
+        requested.append("fire_context")
+    for required in ("district_aqi", "district_pm25"):
+        if required not in requested:
+            requested.insert(0, required)
+    order = (
+        "district_aqi", "district_pm25", "district_pm10", "district_no2", "district_ozone",
+        "wind", "humidity", "rain", "traffic_speed", "traffic_congestion", "fire_context",
     )
     return [
-        {
-            "label": f"{district} modelled US AQI",
-            "value": _value(context.get("district_us_aqi")),
-            "source": "Open-Meteo CAMS model estimate",
-        },
-        {
-            "label": f"{district} modelled PM2.5",
-            "value": _value(context.get("district_pm2_5_ug_m3"), " µg/m³"),
-            "source": "Open-Meteo CAMS model estimate",
-        },
-        {
-            "label": f"Wind in {district}",
-            "value": _value(context.get("wind_speed_kmh"), " km/h"),
-            "source": "Open-Meteo weather model",
-        },
-        {
-            "label": f"Traffic across {sample_count} sampled road(s) in {district}",
-            "value": speed_value,
-            "source": "TomTom Traffic Flow",
-        },
-        {
-            "label": f"NASA FIRMS nearby/upwind detections for {district}",
-            "value": (
-                f"{context.get('recent_fire_detection_count', 0)} nearby; "
-                f"{context.get('upwind_fire_detection_count', 0)} upwind"
-            ),
-            "source": "NASA FIRMS VIIRS satellite thermal detections",
-        },
-    ]
+        fact_id for fact_id in order if fact_id in requested and fact_id in available
+    ][:MAX_AGENT_FACTS]
 
 
 def _apply_comparison(
     report: dict[str, Any],
     primary: dict[str, Any],
     comparison: dict[str, Any],
+    selected_fact_ids: list[str] | None = None,
 ) -> None:
     """Make a comparison explicit without letting Gemini invent either side's values."""
     first = primary.get("district_name", "Selected district")
@@ -618,14 +680,14 @@ def _apply_comparison(
         comparison_sentence = "One or both districts are missing a current modelled AQI."
     report["title"] = f"Air-quality comparison — {first} vs {second}"
     report["summary"] = f"{report['summary']} {comparison_sentence}"
-    # Keep matching facts beside one another in the two-column UI: AQI versus
-    # AQI, PM2.5, wind, traffic, and FIRMS context appear side by side for comparison.
-    # This is clearer than grouping all four facts by district.
-    primary_facts = _comparison_facts(primary)
-    comparison_facts = _comparison_facts(comparison)
+    # Pair the same selected fact together: AQI vs AQI, PM2.5 vs PM2.5, then
+    # weather, traffic speed + congestion, and any meaningful thermal context.
+    fact_ids = _comparison_fact_ids(primary, comparison, selected_fact_ids)
+    primary_candidates = _fact_candidates(primary)
+    comparison_candidates = _fact_candidates(comparison)
     report["numeric_summary"] = [
         fact
-        for pair in zip(primary_facts, comparison_facts)
+        for pair in ((primary_candidates[item], comparison_candidates[item]) for item in fact_ids)
         for fact in pair
     ]
     report["comparison_note"] = (
@@ -682,6 +744,17 @@ def _format_investigation_document(
                 f"{_markdown_cell(metric.get('value', 'Unavailable'))} | "
                 f"{_markdown_cell(metric.get('source', 'Unspecified'))} |"
             )
+
+    selection = report.get("fact_selection")
+    if isinstance(selection, list) and selection:
+        lines.extend(["", "## Evidence selected by the agent"])
+        for item in selection:
+            if not isinstance(item, dict):
+                continue
+            fact_id = item.get("id")
+            reason = item.get("reason")
+            if isinstance(fact_id, str) and isinstance(reason, str):
+                lines.append(f"- **{fact_id}:** {reason}")
 
     causes = report.get("potential_causes")
     if isinstance(causes, list) and causes:
@@ -803,7 +876,7 @@ an irreversible action.
 After tools return, output JSON only:
 {
   "title": "string", "summary": "string",
-  "selected_fact_ids": ["one or more allowed fact IDs"],
+  "fact_selection": [{"id":"allowed fact ID","reason":"why it matters to this investigation"}],
   "potential_causes": [{"label":"string","detail":"string"}],
   "data_quality": "string",
   "recommended_action": {
@@ -814,11 +887,14 @@ Use cautious wording. CAMS is a model estimate, not a local sensor. Never call
 CAMS data a sensor, station, monitor, or measurement from an active district.
 NASA FIRMS VIIRS data are satellite thermal detections, not confirmed fires or
 proof of an emissions source. Treat upwind detections only as a cautious clue.
-After you receive the evidence, select the 4–8 most decision-relevant fact IDs
-from the bounded evidence package. The application will display only those real
-values and their source labels. Always select district_aqi, district_pm25, and
-traffic_speed; use the remaining slots for the strongest contextual evidence,
-including fire_context when recent satellite detections are relevant.
+After you receive the evidence, select 4–12 most decision-relevant facts from
+the bounded evidence package. The application will display only those real
+values and their source labels. Always select district_aqi and district_pm25.
+For traffic, select traffic_speed and traffic_congestion together when traffic
+context is relevant. Select fire_context when there are thermal detections, or
+when the absence of detections is genuinely important to the user's question.
+Do not include a fact merely to fill space. Give every selected fact one short,
+specific reason; never write a numeric value or source label in that reason.
 Never write a value or source label yourself. For each potential cause, include
 only evidence that is actually returned by the allowed tools.
 """.strip()
@@ -840,6 +916,10 @@ only evidence that is actually returned by the allowed tools.
             "means, one about whether wind and traffic distinguish the districts, and, when "
             "needed, one explaining why the available evidence cannot identify a pollution source. "
             "These are interpretations without scores, not proof or a source ranking."
+            " Select 4–12 shared comparison facts. Always select district_aqi and district_pm25; "
+            "select traffic_speed and traffic_congestion as a pair when traffic distinguishes "
+            "the districts. Select fire_context only for a positive thermal clue or genuinely "
+            "relevant negative evidence."
         )
     else:
         system_instruction += (
@@ -879,7 +959,7 @@ only evidence that is actually returned by the allowed tools.
                     "contents": contents,
                     "tools": [{"functionDeclarations": available_tools}],
                     "toolConfig": {"functionCallingConfig": {"mode": "ANY"}},
-                    "generationConfig": {"temperature": 0.1, "maxOutputTokens": 700},
+                    "generationConfig": {"temperature": 0.0, "maxOutputTokens": 700},
                 }
             )
             content = _candidate_content(response)
@@ -981,21 +1061,40 @@ only evidence that is actually returned by the allowed tools.
             }
         )
 
-        final_response = _gemini_request(
-            {
-                "systemInstruction": {"parts": [{"text": system_instruction}]},
-                "contents": contents,
-                "generationConfig": {
-                    "temperature": 0.1,
-                    "maxOutputTokens": 900,
-                    "responseMimeType": "application/json",
-                },
-            }
-        )
-        report = _validated_report(json.loads(_text(_candidate_content(final_response))), {})
+        # A retry repairs occasional malformed/empty first answers from a cold
+        # model request; it does not change the evidence package or tool policy.
+        report: dict[str, Any] | None = None
+        final_error: Exception | None = None
+        for attempt in range(2):
+            try:
+                final_response = _gemini_request(
+                    {
+                        "systemInstruction": {"parts": [{"text": system_instruction}]},
+                        "contents": contents,
+                        "generationConfig": {
+                            "temperature": 0.0,
+                            "maxOutputTokens": 1200,
+                            "responseMimeType": "application/json",
+                        },
+                    }
+                )
+                report = _validated_report(json.loads(_text(_candidate_content(final_response))), {})
+                break
+            except (ValueError, TypeError, json.JSONDecodeError) as error:
+                final_error = error
+                if attempt == 0:
+                    contents.append(
+                        {
+                            "role": "user",
+                            "parts": [{"text": "Return the required JSON now. Include fact_selection as valid objects with id and reason; no Markdown."}],
+                        }
+                    )
+        if report is None:
+            raise final_error or ValueError("Gemini did not produce a valid report")
         current_context = get_district_investigation_context(district_name) or {
             "district_name": district_name
         }
+        selected_fact_ids = report.get("selected_fact_ids")
         _apply_verified_facts(
             report,
             current_context,
@@ -1006,7 +1105,12 @@ only evidence that is actually returned by the allowed tools.
             comparison_context = get_district_investigation_context(
                 comparison_district_name
             ) or {"district_name": comparison_district_name}
-            _apply_comparison(report, current_context, comparison_context)
+            _apply_comparison(
+                report,
+                current_context,
+                comparison_context,
+                selected_fact_ids,
+            )
         else:
             _prepend_inspection_evidence_lead(
                 report,

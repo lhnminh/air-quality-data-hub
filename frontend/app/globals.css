@@ -2545,9 +2545,11 @@ h2 {
   letter-spacing: -0.035em;
 }
 
-.report-metrics div:first-child dd {
-  color: var(--orange);
-}
+.report-metrics .metric-aqi.metric-good dd { color: #168a63; }
+.report-metrics .metric-aqi.metric-moderate dd { color: #b77800; }
+.report-metrics .metric-aqi.metric-sensitive dd { color: #ef632f; }
+.report-metrics .metric-aqi.metric-unhealthy dd,
+.report-metrics .metric-aqi.metric-very-unhealthy dd { color: var(--orange); }
 
 .report-analysis-grid {
   display: grid;

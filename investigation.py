@@ -93,6 +93,21 @@ def _validated_report(value: Any, context: dict[str, Any]) -> dict[str, Any]:
         isinstance(fact_id, str) for fact_id in selected_fact_ids
     ):
         selected_fact_ids = []
+    # Gemini may explain why a fact matters, but it can never supply the fact's
+    # value, label, or source.  agent.py maps the IDs to the trusted package.
+    selection = value.get("fact_selection", [])
+    if not isinstance(selection, list):
+        selection = []
+    fact_selection = [
+        {"id": item["id"], "reason": item["reason"]}
+        for item in selection
+        if isinstance(item, dict)
+        and isinstance(item.get("id"), str)
+        and isinstance(item.get("reason"), str)
+        and item["reason"].strip()
+    ][:12]
+    if fact_selection:
+        selected_fact_ids = [item["id"] for item in fact_selection]
     if not isinstance(value.get("potential_causes"), list):
         raise ValueError("Gemini report is missing potential_causes")
 
@@ -109,7 +124,8 @@ def _validated_report(value: Any, context: dict[str, Any]) -> dict[str, Any]:
         "summary": value["summary"],
         # The agent selects fact IDs; agent.py maps them to trusted values and
         # sources from the database. Never render Gemini-generated numeric claims.
-        "selected_fact_ids": selected_fact_ids[:8],
+        "selected_fact_ids": selected_fact_ids[:12],
+        "fact_selection": fact_selection,
         "numeric_summary": [],
         "potential_causes": causes,
         "data_quality": value["data_quality"],

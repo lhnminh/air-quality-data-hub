@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import agent
 import investigation
 
@@ -9,6 +11,25 @@ def test_comparisons_do_not_offer_the_single_district_history_tool():
     assert "get_district_history" in normal_tools
     assert "get_district_history" not in comparison_tools
     assert "compare_district_evidence" in comparison_tools
+
+
+def test_postgres_decimal_zero_is_a_valid_congestion_reading():
+    assessment = agent._evaluate_district_hypotheses(
+        {
+            "traffic_congestion_percent": Decimal("0E-20"),
+            "traffic_sample_count": 3,
+            "fire_collection_status": "checked",
+        },
+        [],
+    )
+
+    traffic = next(
+        item
+        for item in assessment["hypotheses"]
+        if item["label"] == "Traffic contribution"
+    )
+    assert "only 0%" in " ".join(traffic["contradicting_evidence"])
+    assert "No current TomTom congestion" not in " ".join(traffic["contradicting_evidence"])
 
 
 def test_fallback_report_uses_only_available_evidence():
@@ -43,6 +64,9 @@ def test_datahub_investigation_document_is_readable_markdown():
                     "source": "Open-Meteo CAMS model estimate",
                 }
             ],
+            "fact_selection": [
+                {"id": "district_aqi", "reason": "Sets the current air-quality level."}
+            ],
             "potential_causes": [
                 {
                     "label": "Stagnant-weather accumulation",
@@ -71,6 +95,8 @@ def test_datahub_investigation_document_is_readable_markdown():
     assert "**District:** Hai Ba Trung" in document
     assert "## Key metrics" in document
     assert "| Hai Ba Trung modelled US AQI | 159 | Open-Meteo CAMS model estimate |" in document
+    assert "## Evidence selected by the agent" in document
+    assert "**district_aqi:** Sets the current air-quality level." in document
     assert "## Ranked hypotheses" in document
     assert "- **Human approval:** Required" in document
     assert 'Report: {"title"' not in document
@@ -125,33 +151,17 @@ def test_verified_facts_always_include_honestly_labelled_traffic():
         },
     )
 
-    assert report["numeric_summary"] == [
-        {
-            "label": "Hoan Kiem modelled US AQI",
-            "value": "159",
-            "source": "Open-Meteo CAMS model estimate",
-        },
-        {
-            "label": "Hoan Kiem modelled PM2.5",
-            "value": "156.5 µg/m³",
-            "source": "Open-Meteo CAMS model estimate",
-        },
-        {
-            "label": "Traffic across 1 sampled road(s) in Hoan Kiem",
-            "value": "21.00 km/h (free flow 38.00 km/h)",
-            "source": "TomTom Traffic Flow",
-        },
-        {
-            "label": "Hanoi city-wide US AQI",
-            "value": "97",
-            "source": "IQAir city-wide feed",
-        },
-        {
-            "label": "Wind in Hoan Kiem",
-            "value": "1.6 km/h",
-            "source": "Open-Meteo weather model",
-        },
-    ]
+    values = {fact["label"]: fact["value"] for fact in report["numeric_summary"]}
+    assert values == {
+        "Hoan Kiem modelled US AQI": "159",
+        "Hoan Kiem modelled PM2.5": "156.5 µg/m³",
+        "Hanoi city-wide US AQI": "97",
+        "Wind in Hoan Kiem": "1.6 km/h",
+        "Traffic across 1 sampled road(s) in Hoan Kiem": "21 km/h (free flow 38 km/h)",
+    }
+    aqi = report["numeric_summary"][0]
+    assert aqi["kind"] == "aqi"
+    assert aqi["severity"] == "unhealthy"
     assert "not ground-sensor readings" in report["data_quality"]
 
 
@@ -229,8 +239,7 @@ def test_comparison_keeps_both_districts_source_controlled():
 
     assert report["title"] == "Air-quality comparison — Dong Da vs Ba Dinh"
     assert "Dong Da has the higher" in report["summary"]
-    assert len(report["numeric_summary"]) == 10
-    assert report["numeric_summary"][-1]["source"] == "NASA FIRMS VIIRS satellite thermal detections"
+    assert len(report["numeric_summary"]) == 8
     assert [item["label"] for item in report["numeric_summary"]] == [
         "Dong Da modelled US AQI",
         "Ba Dinh modelled US AQI",
@@ -240,8 +249,6 @@ def test_comparison_keeps_both_districts_source_controlled():
         "Wind in Ba Dinh",
         "Traffic across 1 sampled road(s) in Dong Da",
         "Traffic across 1 sampled road(s) in Ba Dinh",
-        "NASA FIRMS nearby/upwind detections for Dong Da",
-        "NASA FIRMS nearby/upwind detections for Ba Dinh",
     ]
     assert "CAMS model estimates" in report["comparison_note"]
 
