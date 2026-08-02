@@ -374,6 +374,46 @@ def get_district_investigation_context(district_name: str) -> dict[str, Any] | N
     return context
 
 
+def get_district_evidence_status(district_name: str) -> dict[str, Any]:
+    """Return a source-by-source availability count for the dashboard ribbon."""
+    context = get_district_investigation_context(district_name) or {}
+    sources = [
+        {
+            "id": "iqair",
+            "label": "IQAir city-wide air quality",
+            "status": "available" if context.get("city_aqi_us") is not None else "unavailable",
+        },
+        {
+            "id": "cams",
+            "label": "Open-Meteo CAMS district model",
+            "status": "available" if context.get("district_us_aqi") is not None else "unavailable",
+        },
+        {
+            "id": "weather",
+            "label": "Open-Meteo weather",
+            "status": "available" if context.get("wind_speed_kmh") is not None else "unavailable",
+        },
+        {
+            "id": "traffic",
+            "label": "TomTom traffic",
+            "status": "available" if context.get("traffic_current_speed_kmh") is not None else "unavailable",
+        },
+        {
+            "id": "firms",
+            "label": "NASA FIRMS VIIRS thermal detections",
+            "status": context.get("fire_collection_status", "not_collected"),
+        },
+    ]
+    available_statuses = {"available", "checked"}
+    return {
+        "district_name": district_name,
+        "available_source_count": sum(
+            source["status"] in available_statuses for source in sources
+        ),
+        "sources": sources,
+    }
+
+
 def _district_coordinates(district_name: str) -> tuple[float, float] | None:
     for district in DISTRICTS:
         if district["name"] == district_name:
@@ -409,9 +449,14 @@ def _distance_and_bearing(
 
 def _recent_fire_context(district_name: str, wind_from_degrees: Any) -> dict[str, Any]:
     """Summarise recent nearby FIRMS detections without calling them confirmed fires."""
+    collection_status = _recent_fire_collection_status()
     coordinates = _district_coordinates(district_name)
     if not coordinates:
-        return {"recent_fire_detection_count": 0, "upwind_fire_detection_count": 0}
+        return {
+            "recent_fire_detection_count": 0,
+            "upwind_fire_detection_count": 0,
+            **collection_status,
+        }
     latitude, longitude = coordinates
     query = """
         SELECT observed_at, latitude, longitude, confidence, fire_radiative_power_mw, source, satellite
@@ -427,7 +472,11 @@ def _recent_fire_context(district_name: str, wind_from_degrees: Any) -> dict[str
                 rows = cursor.fetchall()
     except psycopg.Error:
         # Allows the app to continue until the migration has been run once.
-        return {"recent_fire_detection_count": 0, "upwind_fire_detection_count": 0}
+        return {
+            "recent_fire_detection_count": 0,
+            "upwind_fire_detection_count": 0,
+            **collection_status,
+        }
 
     nearby: list[dict[str, Any]] = []
     for row in rows:
@@ -452,6 +501,56 @@ def _recent_fire_context(district_name: str, wind_from_degrees: Any) -> dict[str
         "nearest_fire_observed_at": nearest["observed_at"] if nearest else None,
         "nearest_fire_confidence": nearest["confidence"] if nearest else None,
         "nearest_fire_frp_mw": nearest["fire_radiative_power_mw"] if nearest else None,
+        **collection_status,
+    }
+
+
+def _recent_fire_collection_status() -> dict[str, Any]:
+    """Describe whether both FIRMS feeds completed, even when they returned no rows."""
+    expected_sources = {"VIIRS_SNPP_NRT", "VIIRS_NOAA20_NRT"}
+    query = """
+        SELECT DISTINCT ON (source_dataset)
+            source_dataset, status, detection_count, collected_at, error_message
+        FROM fire_collection_runs
+        WHERE collected_at >= CURRENT_TIMESTAMP - INTERVAL '72 hours'
+        ORDER BY source_dataset, collected_at DESC
+    """
+    try:
+        with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute(query)
+                rows = [dict(row) for row in cursor.fetchall()]
+    except psycopg.Error:
+        return {
+            "fire_collection_status": "not_collected",
+            "fire_collection_checked_at": None,
+            "fire_collection_sources": [],
+        }
+
+    by_source = {row["source_dataset"]: row for row in rows}
+    completed = [row for row in by_source.values() if row.get("status") == "succeeded"]
+    if all(
+        by_source.get(source, {}).get("status") == "succeeded"
+        for source in expected_sources
+    ):
+        status = "checked"
+    elif completed:
+        status = "partial"
+    else:
+        status = "not_collected"
+    checked_at = max((row.get("collected_at") for row in completed), default=None)
+    return {
+        "fire_collection_status": status,
+        "fire_collection_checked_at": checked_at,
+        "fire_collection_sources": [
+            {
+                "source_dataset": source,
+                "status": row.get("status"),
+                "detection_count": row.get("detection_count"),
+                "collected_at": row.get("collected_at"),
+            }
+            for source, row in sorted(by_source.items())
+        ],
     }
 
 
@@ -1017,3 +1116,26 @@ def save_firms_fire_observation(
             cursor.execute(query, values)
             inserted_row = cursor.fetchone()
     return inserted_row is not None
+
+
+def save_firms_collection_run(
+    source_dataset: str,
+    detection_count: int,
+    collected_at: str,
+    *,
+    status: str = "succeeded",
+    error_message: str | None = None,
+) -> None:
+    """Audit a FIRMS query so an empty result remains visible as a completed check."""
+    query = """
+        INSERT INTO fire_collection_runs (
+            source_dataset, status, detection_count, collected_at, error_message
+        )
+        VALUES (%s, %s, %s, %s, %s)
+    """
+    with psycopg.connect(get_database_url()) as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                query,
+                [source_dataset, status, detection_count, collected_at, error_message],
+            )

@@ -8,6 +8,7 @@ from database import (
     check_database_connection,
     get_city_air_quality_history,
     get_district_air_quality_history,
+    get_district_evidence_status,
     get_district_statuses,
     get_district_investigation_context,
     get_recent_modeled_air_quality_observations,
@@ -143,6 +144,19 @@ def recent_fire_observations(
 def district_statuses() -> dict:
     districts = get_district_statuses()
     return {"count": len(districts), "districts": districts}
+
+
+@app.get("/api/district-evidence-status")
+def district_evidence_status(
+    district_name: str = Query(min_length=1, max_length=100),
+) -> dict:
+    canonical_names = {
+        district["name"].casefold(): district["name"] for district in DISTRICTS
+    }
+    canonical_name = canonical_names.get(district_name.strip().casefold())
+    if not canonical_name:
+        raise HTTPException(status_code=404, detail="Unknown Hanoi pilot district")
+    return get_district_evidence_status(canonical_name)
 
 
 def _comparison_district_from_prompt(prompt: str, selected_district: str) -> str | None:

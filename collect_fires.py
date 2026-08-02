@@ -14,7 +14,7 @@ from urllib.request import urlopen
 
 from dotenv import load_dotenv
 
-from database import save_firms_fire_observation
+from database import save_firms_collection_run, save_firms_fire_observation
 
 
 load_dotenv()
@@ -45,13 +45,32 @@ def main() -> None:
 
     collected_at = datetime.now(UTC).isoformat()
     saved = 0
+    failed_sources = 0
     for source in FIRMS_SOURCES:
-        detections = get_firms_detections(map_key, source)
+        try:
+            detections = get_firms_detections(map_key, source)
+        except RuntimeError as error:
+            save_firms_collection_run(
+                source,
+                0,
+                collected_at,
+                status="failed",
+                error_message=str(error),
+            )
+            failed_sources += 1
+            print(f"NASA FIRMS {source}: collection failed ({error})")
+            continue
         print(f"NASA FIRMS {source}: {len(detections)} recent Hanoi-area thermal detections")
         for detection in detections:
             if save_firms_fire_observation(detection, source, collected_at):
                 saved += 1
+        # This is intentionally stored even when detections is empty. Otherwise
+        # the dashboard cannot distinguish a successful zero-result query from
+        # a query that was never run.
+        save_firms_collection_run(source, len(detections), collected_at)
     print(f"Saved {saved} new NASA FIRMS VIIRS thermal detections to PostgreSQL")
+    if failed_sources:
+        raise SystemExit(f"NASA FIRMS collection failed for {failed_sources} feed(s)")
 
 
 if __name__ == "__main__":

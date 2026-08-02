@@ -233,6 +233,24 @@ ON fire_observations (observed_at DESC, latitude, longitude);
 """
 
 
+create_fire_collection_runs_table_sql = """
+CREATE TABLE IF NOT EXISTS fire_collection_runs (
+    fire_collection_run_id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    source_dataset TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('succeeded', 'failed')),
+    detection_count INTEGER NOT NULL CHECK (detection_count >= 0),
+    collected_at TIMESTAMPTZ NOT NULL,
+    error_message TEXT
+);
+"""
+
+
+create_fire_collection_runs_index_sql = """
+CREATE INDEX IF NOT EXISTS fire_collection_runs_source_time_index
+ON fire_collection_runs (source_dataset, collected_at DESC);
+"""
+
+
 migrate_traffic_columns_sql = """
 ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS source TEXT;
 ALTER TABLE traffic_observations ADD COLUMN IF NOT EXISTS collected_at TIMESTAMPTZ;
@@ -311,6 +329,8 @@ with psycopg.connect(database_url) as connection:
         cursor.execute(create_traffic_index_sql)
         cursor.execute(create_fire_table_sql)
         cursor.execute(create_fire_index_sql)
+        cursor.execute(create_fire_collection_runs_table_sql)
+        cursor.execute(create_fire_collection_runs_index_sql)
         cursor.execute(migrate_district_columns_sql)
         cursor.execute(create_investigations_table_sql)
         cursor.execute(create_investigation_evidence_table_sql)
@@ -325,6 +345,7 @@ print("Created table: city_air_quality_history")
 print("Created table: district_air_quality_history")
 print("Created table: traffic_observations")
 print("Created table: fire_observations")
+print("Created table: fire_collection_runs")
 print("Created table: investigations")
 print("Created table: investigation_evidence")
 print("Created table: investigation_actions")
