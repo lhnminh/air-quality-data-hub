@@ -51,14 +51,19 @@ export default function DistrictMap({
       style: {
         version: 8,
         sources: {
-          cartoLight: {
+          cartoTracker: {
             type: "raster",
-            tiles: ["https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"],
+            // Request CARTO's Retina image, but keep its logical tile size at
+            // 256px. That preserves the existing zoom and label behaviour
+            // while giving the canvas twice as many source pixels to draw.
+            tiles: ["https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"],
+            // This is intentionally 256, not 512: changing the logical tile
+            // size changes which map labels CARTO returns at a given zoom.
             tileSize: 256,
             attribution: "© OpenStreetMap contributors © CARTO",
           },
         },
-        layers: [{ id: "carto-light", type: "raster", source: "cartoLight" }],
+        layers: [{ id: "carto-tracker", type: "raster", source: "cartoTracker" }],
       },
     });
     map.current.addControl(new maplibregl.NavigationControl(), "top-right");

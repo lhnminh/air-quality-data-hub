@@ -1974,8 +1974,15 @@ h2 {
 }
 
 .district-map-shell {
-  background: #eaf1f7;
+  background: #071b3f;
   min-height: 190px;
+}
+
+/* The original AerX tracker treatment. It applies only to CARTO's map tiles,
+   so district markers and the selected-district glow keep their design. */
+.district-map .maplibregl-canvas {
+  filter: sepia(0.68) hue-rotate(96deg) saturate(2.35) brightness(1.02) contrast(1.08);
+  mix-blend-mode: screen;
 }
 
 .district-map-loading {
