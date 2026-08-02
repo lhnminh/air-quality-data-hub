@@ -57,6 +57,8 @@ test("implements the Evidence Lab dashboard without losing the investigation wor
   assert.match(page, /api\/observations/i);
   assert.match(page, /api\/weather/i);
   assert.match(page, /api\/modeled-air-quality/i);
+  assert.match(page, /api\/traffic/i);
+  assert.match(page, /api\/fires/i);
   assert.match(page, /api\/districts/i);
   assert.match(page, /api\/district-air-quality-history/i);
   assert.match(page, /api\/investigate/i);
@@ -67,6 +69,8 @@ test("implements the Evidence Lab dashboard without losing the investigation wor
   assert.match(page, /monthlyHistoryAverages/i);
   assert.match(page, /HistoryLineChart/i);
   assert.match(historyLineChart, /Thirty-day.*location.*US AQI trend/i);
+  assert.match(evidenceGraph, /traffic: sourceStatus\(trafficMode\)/i);
+  assert.match(evidenceGraph, /fire: sourceStatus\(fireMode\)/i);
   assert.doesNotMatch(districtMap, /status\?\.us_aqi/);
   assert.doesNotMatch(page, /DuckDB/i);
 });

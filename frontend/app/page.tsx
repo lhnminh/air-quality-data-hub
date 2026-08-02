@@ -102,6 +102,15 @@ async function requestModeledAirQuality() {
   }
 }
 
+async function requestSourceAvailability(path: "/api/traffic" | "/api/fires") {
+  try {
+    const response = await fetch(`${apiUrl}${path}?limit=1`);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 async function requestDistrictAirQualityHistory(
   districtName: string,
   days: HistoryDays,
@@ -253,6 +262,8 @@ export default function Home() {
   const [weatherMode, setWeatherMode] = useState<DataMode>("loading");
   const [modeledAirQualityMode, setModeledAirQualityMode] =
     useState<DataMode>("loading");
+  const [trafficMode, setTrafficMode] = useState<DataMode>("loading");
+  const [fireMode, setFireMode] = useState<DataMode>("loading");
   const [districtMode, setDistrictMode] = useState<DataMode>("loading");
   const [historyMode, setHistoryMode] = useState<HistoryMode>("loading");
   const [historyDays, setHistoryDays] = useState<HistoryDays>(30);
@@ -274,6 +285,8 @@ export default function Home() {
       observationResult: AirObservation[] | null,
       weatherResult: WeatherObservation[] | null,
       modeledResult: ModeledAirQualityObservation[] | null,
+      trafficAvailable: boolean,
+      fireAvailable: boolean,
       districtResult: DistrictStatus[] | null,
       historyResult: DistrictAirQualityHistoryObservation[] | null,
     ) => {
@@ -287,6 +300,8 @@ export default function Home() {
 
       setWeatherMode(weatherResult?.length ? "postgresql" : "demo");
       setModeledAirQualityMode(modeledResult?.length ? "postgresql" : "demo");
+      setTrafficMode(trafficAvailable ? "postgresql" : "demo");
+      setFireMode(fireAvailable ? "postgresql" : "demo");
 
       if (!historyResult?.length) {
         setDistrictHistory([]);
@@ -317,6 +332,8 @@ export default function Home() {
       requestObservations(),
       requestWeather(),
       requestModeledAirQuality(),
+      requestSourceAvailability("/api/traffic"),
+      requestSourceAvailability("/api/fires"),
       requestDistrictStatuses(),
       requestDistrictAirQualityHistory(selectedDistrictName, historyDays),
     ]);
@@ -331,6 +348,8 @@ export default function Home() {
       requestObservations(),
       requestWeather(),
       requestModeledAirQuality(),
+      requestSourceAvailability("/api/traffic"),
+      requestSourceAvailability("/api/fires"),
       requestDistrictStatuses(),
       requestDistrictAirQualityHistory(selectedDistrictName, historyDays),
     ]).then((results) => {
@@ -688,6 +707,8 @@ export default function Home() {
                   dataMode={dataMode}
                   weatherMode={weatherMode}
                   modeledAirQualityMode={modeledAirQualityMode}
+                  trafficMode={trafficMode}
+                  fireMode={fireMode}
                   isGeneratingReport={isGeneratingReport}
                   reportReady={Boolean(report)}
                   toolTrace={toolTrace}

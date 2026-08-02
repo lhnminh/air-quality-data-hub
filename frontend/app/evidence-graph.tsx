@@ -22,6 +22,8 @@ type EvidenceGraphProps = {
   dataMode: SourceMode;
   weatherMode: SourceMode;
   modeledAirQualityMode: SourceMode;
+  trafficMode: SourceMode;
+  fireMode: SourceMode;
   isGeneratingReport: boolean;
   reportReady: boolean;
   toolTrace: ToolTrace[];
@@ -175,6 +177,8 @@ export default function EvidenceGraph({
   dataMode,
   weatherMode,
   modeledAirQualityMode,
+  trafficMode,
+  fireMode,
   isGeneratingReport,
   reportReady,
   toolTrace,
@@ -196,15 +200,14 @@ export default function EvidenceGraph({
     [toolTrace],
   );
   const dataHubTrace = traceByName.get("get_datahub_context");
-  const assessmentTrace = traceByName.get("evaluate_district_hypotheses");
   const writeBackTrace = traceByName.get("save_investigation_to_datahub");
 
   const nodeStatuses: Record<string, string> = {
     iqair: sourceStatus(dataMode),
     weather: sourceStatus(weatherMode),
     cams: sourceStatus(modeledAirQualityMode),
-    traffic: reportReady ? "ready" : "waiting",
-    fire: assessmentTrace?.status ?? (isGeneratingReport ? "running" : "waiting"),
+    traffic: sourceStatus(trafficMode),
+    fire: sourceStatus(fireMode),
     database: dataMode === "loading" ? "loading" : "ready",
     datahub: dataHubTrace?.status ?? (isGeneratingReport ? "running" : "ready"),
     agent: isGeneratingReport ? "running" : reportReady ? "ready" : "waiting",
