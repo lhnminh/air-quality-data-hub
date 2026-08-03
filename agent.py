@@ -9,7 +9,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
-from datahub_mcp import inspect_airtrace_catalog, save_investigation_document
+from datahub_mcp import inspect_zephyraq_catalog, save_investigation_document
 from database import (
     get_district_history,
     get_district_investigation_context,
@@ -24,7 +24,7 @@ GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 TOOL_DECLARATIONS = [
     {
         "name": "get_datahub_context",
-        "description": "Read AerX dataset metadata, lineage, and catalog context through DataHub MCP.",
+        "description": "Read ZephyrAQ dataset metadata, lineage, and catalog context through DataHub MCP.",
         "parameters": {"type": "OBJECT", "properties": {}},
     },
     {
@@ -48,7 +48,7 @@ TOOL_DECLARATIONS = [
     {
         "name": "evaluate_district_hypotheses",
         "description": (
-            "Run AerX's transparent, deterministic evidence assessment for the selected "
+            "Run ZephyrAQ's transparent, deterministic evidence assessment for the selected "
             "district. It ranks traffic context, stagnant-weather accumulation, recent upwind "
             "NASA FIRMS VIIRS thermal detections, and unknown "
             "cause using bounded database evidence. It never claims a proven source."
@@ -165,7 +165,7 @@ def _tool_result(
     if requested_district != district_name:
         return {"status": "rejected", "summary": "Only the selected district may be queried."}
     if tool_name == "get_datahub_context":
-        return inspect_airtrace_catalog()
+        return inspect_zephyraq_catalog()
     if tool_name == "get_district_evidence":
         context = get_district_investigation_context(district_name)
         return {
@@ -181,7 +181,7 @@ def _tool_result(
             "status": "connected" if context else "missing",
             "assessment": _evaluate_district_hypotheses(context, history),
         }
-    return {"status": "rejected", "summary": "Tool is not on the AerX allowlist."}
+    return {"status": "rejected", "summary": "Tool is not on the ZephyrAQ allowlist."}
 
 
 def _trace_item(tool_name: str, result: dict[str, Any]) -> dict[str, Any]:
@@ -326,7 +326,7 @@ def _evaluate_district_hypotheses(
         {
             "label": "Cause remains uncertain",
             "score": min(unknown_score, 100),
-            "supporting_evidence": ["AerX has no local source-attribution sensor and satellite detections cannot confirm a pollution source."],
+            "supporting_evidence": ["ZephyrAQ has no local source-attribution sensor and satellite detections cannot confirm a pollution source."],
             "contradicting_evidence": [],
         },
     ]
@@ -709,7 +709,7 @@ def _format_investigation_document(
     report: dict[str, Any],
 ) -> str:
     """Turn a structured investigation report into readable DataHub Markdown."""
-    title = report.get("title") or f"AerX investigation — {district_name}"
+    title = report.get("title") or f"ZephyrAQ investigation — {district_name}"
     lines = [
         f"# {title}",
         "",
@@ -845,7 +845,7 @@ def _fallback_agent_result(
     }
     datahub_write = save_investigation_document(
         _format_investigation_document(district_name, prompt, report),
-        title=f"AerX investigation — {district_name}",
+        title=f"ZephyrAQ investigation — {district_name}",
     )
     tool_trace.append(_trace_item("save_investigation_to_datahub", datahub_write))
     saved = save_investigation(
@@ -866,7 +866,7 @@ def run_district_agent(
 ) -> dict[str, Any]:
     """Let Gemini select bounded tools, then persist a review-only outcome."""
     system_instruction = """
-You are the AerX investigation agent for Hanoi. You must first inspect
+You are the ZephyrAQ investigation agent for Hanoi. You must first inspect
 DataHub context and district evidence using available tools. You may inspect
 district history and the transparent hypothesis assessment if useful. DataHub
 contracts tell you which source is district-level, city-wide, modelled, or only
@@ -1034,7 +1034,7 @@ only evidence that is actually returned by the allowed tools.
                     "parts": [
                         {
                             "text": (
-                                "Policy-required evidence package collected by AerX. "
+                                "Policy-required evidence package collected by ZephyrAQ. "
                                 "Use it as the authoritative data for your final JSON:\n"
                                 + json.dumps(required_evidence, default=str)
                             )
@@ -1146,7 +1146,7 @@ only evidence that is actually returned by the allowed tools.
 
     datahub_write = save_investigation_document(
         _format_investigation_document(district_name, prompt, report),
-        title=f"AerX investigation — {district_name}",
+        title=f"ZephyrAQ investigation — {district_name}",
     )
     tool_trace.append(_trace_item("save_investigation_to_datahub", datahub_write))
     saved = save_investigation(

@@ -13,7 +13,7 @@ test("implements the Evidence Lab dashboard without losing the investigation wor
     readFile(new URL("../app/evidence-graph.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(layout, /AerX — Hanoi Air Intelligence/i);
+  assert.match(layout, /ZephyrAQ — Hanoi Air Intelligence/i);
 
   // Evidence Lab structure and visual language.
   assert.match(page, /className="workspace lab-workspace"/);

@@ -107,7 +107,7 @@ const nodes: GraphNode[] = [
   },
   {
     id: "agent",
-    label: "AerX agent",
+    label: "ZephyrAQ agent",
     shortLabel: "AI",
     kind: "agent",
     detail: "Gemini selects from allowlisted tools and explains only verified, bounded facts.",

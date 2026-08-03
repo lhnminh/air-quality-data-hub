@@ -1,9 +1,9 @@
-# AerX deployment guide
+# ZephyrAQ deployment guide
 
-AerX uses two Vercel projects from the same GitHub repository:
+ZephyrAQ uses two Vercel projects from the same GitHub repository:
 
-- `airtrace-api` runs the Python FastAPI application.
-- `airtrace-frontend` runs the Next.js dashboard.
+- `zephyraq-api` runs the Python FastAPI application.
+- `zephyraq-frontend` runs the Next.js dashboard.
 
 Both use the hosted PostgreSQL database. Open-source DataHub remains on a
 teammate's Mac during the hackathon demo and catalogs that same database.
@@ -111,7 +111,7 @@ values in the Vercel dashboard instead.
 
 1. In Vercel, choose **Add New → Project**.
 2. Import this GitHub repository.
-3. Name the project `airtrace-api`.
+3. Name the project `zephyraq-api`.
 4. Leave the root directory at the repository root (`.`).
 5. Let Vercel detect the Python/FastAPI project.
 6. Do not add a custom build command.
@@ -128,14 +128,14 @@ frontend address does not exist yet.
 Deploy and copy the resulting address, for example:
 
 ```text
-https://airtrace-api.vercel.app
+https://zephyraq-api.vercel.app
 ```
 
 Verify both endpoints:
 
 ```text
-https://airtrace-api.vercel.app/api/health
-https://airtrace-api.vercel.app/api/observations
+https://zephyraq-api.vercel.app/api/health
+https://zephyraq-api.vercel.app/api/observations
 ```
 
 The health response should contain:
@@ -151,28 +151,28 @@ The health response should contain:
 ## Deploy the frontend
 
 1. In Vercel, add another project from the same GitHub repository.
-2. Name it `airtrace-frontend`.
+2. Name it `zephyraq-frontend`.
 3. Set its root directory to `frontend`.
 4. Let Vercel detect Next.js.
 5. Add this environment variable using the real API address:
 
 ```text
-NEXT_PUBLIC_API_URL=https://airtrace-api.vercel.app
+NEXT_PUBLIC_API_URL=https://zephyraq-api.vercel.app
 ```
 
 Deploy and copy the resulting frontend address, for example:
 
 ```text
-https://airtrace-frontend.vercel.app
+https://zephyraq-frontend.vercel.app
 ```
 
 ## Finish the API CORS setting
 
-Return to the `airtrace-api` Vercel project and replace `FRONTEND_URL` with the
+Return to the `zephyraq-api` Vercel project and replace `FRONTEND_URL` with the
 real frontend origin:
 
 ```text
-FRONTEND_URL=https://airtrace-frontend.vercel.app
+FRONTEND_URL=https://zephyraq-frontend.vercel.app
 ```
 
 Redeploy the API. Then refresh the frontend. Its status should say
@@ -331,7 +331,7 @@ URL for judging. Support for multiple preview origins can be added later.
 
 ## Agent safety boundary
 
-AerX never gives Gemini database credentials or arbitrary SQL access. Gemini
+ZephyrAQ never gives Gemini database credentials or arbitrary SQL access. Gemini
 can only request the backend's allowlisted tools for the selected district. Its
 only automated action is to create an investigation marked
 `awaiting_human_review`; public alerts and operational actions require a human.

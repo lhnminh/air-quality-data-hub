@@ -9,9 +9,9 @@ source:
 
     # This distinguishes production assets from local development assets.
     env: "PROD"
-    platform_instance: "airtrace-neon"
+    platform_instance: "zephyraq-neon"
 
-    # AerX currently stores tables only in the public schema.
+    # ZephyrAQ currently stores tables only in the public schema.
     schema_pattern:
       allow:
         - "public"

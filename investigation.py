@@ -141,7 +141,7 @@ def generate_district_report(context: dict[str, Any], prompt: str) -> dict[str, 
     model = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
     evidence = json.dumps(context, default=str, ensure_ascii=False)
     instructions = """
-You are AerX, an air-quality decision-support assistant for Hanoi.
+You are ZephyrAQ, an air-quality decision-support assistant for Hanoi.
 Use ONLY the evidence JSON provided by the application. Do not invent readings,
 sources, history, or causal claims. CAMS is a regional atmospheric model, not a
 ground sensor. Traffic and weather are context only, not proof of cause.
@@ -197,7 +197,7 @@ numeric_summary. If evidence is missing, say so. Use cautious terms such as
     except (HTTPError, URLError, TimeoutError, ValueError):
         report = _fallback_report(context)
         report["ai_status"] = (
-            "Gemini did not return a usable report, so AerX is showing "
+            "Gemini did not return a usable report, so ZephyrAQ is showing "
             "the verified database evidence instead."
         )
         return report

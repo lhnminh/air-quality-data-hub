@@ -139,7 +139,7 @@ wheels = [
 ]
 
 [[package]]
-name = "air-quality-data-hub"
+name = "zephyraq"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

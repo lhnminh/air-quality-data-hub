@@ -1,4 +1,4 @@
-# AirTrace front-end mockups
+# ZephyrAQ front-end mockups
 
 These concepts preserve the current product flow—district selection, historic AQI,
 evidence provenance, and the AI investigation assistant—while testing three
@@ -57,5 +57,5 @@ history still visible. The node graph remains accessible through the persistent
 
 Use **Evidence Lab v2** as the structural baseline, including its node graph;
 borrow the **Urban Observatory** map emphasis and the **Field Journal** typography
-and restrained red accent to give AirTrace a recognisable identity without
+and restrained red accent to give ZephyrAQ a recognisable identity without
 sacrificing usability.

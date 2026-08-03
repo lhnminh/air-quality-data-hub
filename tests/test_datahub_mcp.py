@@ -7,7 +7,7 @@ def test_catalog_context_requires_explicit_mcp_configuration(monkeypatch):
     monkeypatch.delenv("DATAHUB_GMS_URL", raising=False)
     monkeypatch.delenv("DATAHUB_GMS_TOKEN", raising=False)
 
-    result = datahub_mcp.inspect_airtrace_catalog()
+    result = datahub_mcp.inspect_zephyraq_catalog()
 
     assert result["status"] == "not_configured"
     assert "DATAHUB_GMS_URL" in result["summary"]

@@ -1,7 +1,7 @@
-https://air-quality-data-hub.vercel.app/
+https://zephyraq.vercel.app/
 
 
-# AerX — Hanoi Air Intelligence
+# ZephyrAQ — Hanoi Air Intelligence
 
 A near-real-time AI agent that investigates poor air quality in Hanoi, ranks its likely sources, and coordinates an evidence-backed response using DataHub.
 
@@ -15,7 +15,7 @@ Schools, environmental teams, and local authorities need an auditable way to val
 
 ## The agent's job
 
-AerX does more than display AQI:
+ZephyrAQ does more than display AQI:
 
 1. Detect an unusual or unhealthy pollution event.
 2. Verify that the readings are fresh and supported by nearby sensors.
@@ -26,7 +26,7 @@ AerX does more than display AQI:
 7. Execute the approved notification or inspection request.
 8. Write the investigation and outcome back to DataHub.
 
-AerX reports a **likely source with confidence**, not definitive scientific attribution.
+ZephyrAQ reports a **likely source with confidence**, not definitive scientific attribution.
 
 ## MVP source hypotheses
 
@@ -49,7 +49,7 @@ flowchart LR
     E --> F["Operational data store"]
     E --> G["DataHub context graph"]
     F --> H["Event and attribution engine"]
-    G --> I["AerX agent"]
+    G --> I["ZephyrAQ agent"]
     H --> I
     I --> J["Human review"]
     J --> K["Alerts and investigation tasks"]
@@ -71,7 +71,7 @@ The operational store contains measurements and model outputs. DataHub contains 
 
 ## Web application
 
-AerX is an operations web app. It is not only an air-quality map: it is the interface for observing events, reviewing the agent's evidence, approving actions, and learning from previous investigations.
+ZephyrAQ is an operations web app. It is not only an air-quality map: it is the interface for observing events, reviewing the agent's evidence, approving actions, and learning from previous investigations.
 
 ### Core screens
 
@@ -94,9 +94,9 @@ Example source ranking:
 ```text
 Browser
    ↓
-AerX web application
+ZephyrAQ web application
    ↓
-AerX API and agent
+ZephyrAQ API and agent
    ├── Environmental data collectors
    ├── Event and attribution engine
    ├── DataHub MCP or Agent Context Kit
@@ -133,13 +133,13 @@ DataHub Cloud. The judging demo does not require that additional hosting.
 
 ### Planned local command interface
 
-AerX will expose separate commands for setup, collection, inspection, and metadata synchronization instead of running DataHub ingestion every time the application starts:
+ZephyrAQ will expose separate commands for setup, collection, inspection, and metadata synchronization instead of running DataHub ingestion every time the application starts:
 
 ```bash
-uv run airtrace setup
-uv run airtrace collect
-uv run airtrace inspect
-uv run airtrace sync-datahub
+uv run zephyraq setup
+uv run zephyraq collect
+uv run zephyraq inspect
+uv run zephyraq sync-datahub
 ```
 
 - `setup` creates the empty database schema without requiring an IQAir request, verifies that DataHub is reachable, and publishes the initial table metadata.
@@ -153,8 +153,8 @@ The planned first-run workflow is:
 uv sync --extra datahub
 cp .env.example .env
 uv run datahub docker quickstart
-uv run airtrace setup
-uv run airtrace collect
+uv run zephyraq setup
+uv run zephyraq collect
 ```
 
 This command interface is not implemented yet. The current prototype uses `uv run python main.py` for collection and `uv run --env-file .env datahub ingest -c ingestion/postgres.yml` for metadata ingestion.
@@ -195,13 +195,13 @@ modeled pollutant records, so every selectable district has a full status.
 
 Run `uv run python collect_traffic.py` to collect real-time TomTom road-flow
 data at three deliberately different road segments in each pilot district. Add a
-`TOMTOM_API_KEY` to `.env` first. AerX stores the latest sample as a district
+`TOMTOM_API_KEY` to `.env` first. ZephyrAQ stores the latest sample as a district
 average, while retaining the individual road records for audit. It is context
 only: neither a vehicle count nor proof that traffic caused a pollution event.
 
 ### Collect NASA FIRMS VIIRS thermal detections
 
-AerX can collect both NASA FIRMS near-real-time VIIRS feeds: Suomi-NPP and
+ZephyrAQ can collect both NASA FIRMS near-real-time VIIRS feeds: Suomi-NPP and
 NOAA-20. Request a free FIRMS `MAP_KEY` at
 [NASA FIRMS Map Key](https://firms.modaps.eosdis.nasa.gov/api/map_key/) using
 your email; NASA sends the key to that address. Add it to `.env`:
@@ -219,7 +219,7 @@ uv run python collect_fires.py
 ```
 
 FIRMS detections are satellite thermal anomalies. They are not confirmed fires,
-not proof of emissions, and not proof that a detection caused pollution. AerX
+not proof of emissions, and not proof that a detection caused pollution. ZephyrAQ
 uses nearby/upwind detections only as one carefully labelled investigation clue.
 
 ### Import downloaded city air-quality history
@@ -340,7 +340,7 @@ Each conclusion includes:
 
 ## Actions
 
-Depending on the evidence, AerX can:
+Depending on the evidence, ZephyrAQ can:
 
 - Recommend that selected schools pause outdoor activities.
 - Send targeted health guidance for an affected district.
@@ -362,7 +362,7 @@ DataHub allows the agent to determine:
 - Who owns a failed source or pipeline
 - What evidence and decisions were recorded in earlier events
 
-Without this context, the agent may treat stale or incompatible measurements as trustworthy. After each investigation, AerX saves its evidence, decision, action, and outcome so future investigations inherit that knowledge.
+Without this context, the agent may treat stale or incompatible measurements as trustworthy. After each investigation, ZephyrAQ saves its evidence, decision, action, and outcome so future investigations inherit that knowledge.
 
 ## Demo scenarios
 
@@ -393,7 +393,7 @@ The demo replays timestamped events as a live stream. Production feeds would be 
 
 ## Hackathon fit
 
-AerX targets **Agents That Do Real Work**: it reads organizational and technical context through DataHub, investigates an operational problem, initiates a useful response, and writes the resulting knowledge back for the next person or agent.
+ZephyrAQ targets **Agents That Do Real Work**: it reads organizational and technical context through DataHub, investigates an operational problem, initiates a useful response, and writes the resulting knowledge back for the next person or agent.
 
 Required submission artifacts:
 

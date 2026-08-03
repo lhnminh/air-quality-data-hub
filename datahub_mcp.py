@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-AIRTRACE_DATA_CONTRACTS = {
+ZEPHYRAQ_DATA_CONTRACTS = {
     "modeled_air_quality_observations": {
         "source_label": "Open-Meteo CAMS model estimate",
         "scope": "district-level regional atmospheric-model estimate, not a ground sensor",
@@ -109,7 +109,7 @@ def _call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
                     "params": {
                         "protocolVersion": "2024-11-05",
                         "capabilities": {},
-                        "clientInfo": {"name": "airtrace", "version": "0.1.0"},
+                        "clientInfo": {"name": "zephyraq", "version": "0.1.0"},
                     },
                 },
             )
@@ -167,7 +167,7 @@ def list_available_tools() -> dict[str, Any]:
                 {
                     "jsonrpc": "2.0", "id": 1, "method": "initialize",
                     "params": {"protocolVersion": "2024-11-05", "capabilities": {},
-                               "clientInfo": {"name": "airtrace", "version": "0.1.0"}},
+                               "clientInfo": {"name": "zephyraq", "version": "0.1.0"}},
                 },
             )
             return _request(process, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
@@ -175,7 +175,7 @@ def list_available_tools() -> dict[str, Any]:
         return {"status": "unavailable", "summary": f"DataHub MCP unavailable: {error}"}
 
 
-def inspect_airtrace_catalog() -> dict[str, Any]:
+def inspect_zephyraq_catalog() -> dict[str, Any]:
     """Verify source meaning and required fields against DataHub's live catalog."""
     search = _call_tool(
         "search",
@@ -194,7 +194,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
     urns = [
         row.get("entity", {}).get("urn")
         for row in search_rows
-        if row.get("entity", {}).get("properties", {}).get("name") in AIRTRACE_DATA_CONTRACTS
+        if row.get("entity", {}).get("properties", {}).get("name") in ZEPHYRAQ_DATA_CONTRACTS
     ]
     urns = [urn for urn in urns if isinstance(urn, str)]
     entities_result = _call_tool("get_entities", {"urns": urns}) if urns else {}
@@ -212,7 +212,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
         if isinstance(entity, dict)
     }
     assets = []
-    for table, contract in AIRTRACE_DATA_CONTRACTS.items():
+    for table, contract in ZEPHYRAQ_DATA_CONTRACTS.items():
         fields = fields_by_table.get(table, set())
         missing_fields = [field for field in contract["required_fields"] if field not in fields]
         assets.append(
@@ -230,7 +230,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
     return {
         "status": "connected",
         "summary": (
-            f"DataHub MCP verified {verified_count}/{len(assets)} AerX source "
+            f"DataHub MCP verified {verified_count}/{len(assets)} ZephyrAQ source "
             "contracts against live PostgreSQL schemas."
         ),
         "assets": assets,
@@ -239,7 +239,7 @@ def inspect_airtrace_catalog() -> dict[str, Any]:
 
 
 def save_investigation_document(
-    document: str, title: str = "AerX investigation"
+    document: str, title: str = "ZephyrAQ investigation"
 ) -> dict[str, Any]:
     """Write a concise, review-only investigation record through DataHub's REST API."""
     if os.environ.get("DATAHUB_MCP_WRITE_ENABLED") != "true":
@@ -260,12 +260,12 @@ def save_investigation_document(
             "summary": "DataHub SDK is not installed; run `uv sync --extra datahub`.",
         }
 
-    document_id = f"airtrace-investigation-{uuid.uuid4()}"
+    document_id = f"zephyraq-investigation-{uuid.uuid4()}"
     document_urn = f"urn:li:document:{document_id}"
     related_assets = [
         "urn:li:dataset:(urn:li:dataPlatform:postgres,"
-        f"airtrace-neon.neondb.public.{table},PROD)"
-        for table in AIRTRACE_DATA_CONTRACTS
+        f"zephyraq-neon.neondb.public.{table},PROD)"
+        for table in ZEPHYRAQ_DATA_CONTRACTS
     ]
     try:
         client = DataHubClient(server=gms_url, token=gms_token)
@@ -276,7 +276,7 @@ def save_investigation_document(
             subtype="Reference",
             show_in_global_context=True,
             related_assets=related_assets,
-            custom_properties={"created_by": "AerX investigation agent"},
+            custom_properties={"created_by": "ZephyrAQ investigation agent"},
         )
         # Explicitly emit this aspect even though `True` is DataHub's SDK
         # default. The Documents sidebar in the local OSS UI filters on the

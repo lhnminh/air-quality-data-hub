@@ -153,7 +153,7 @@ def request_history(
     )
     request = Request(
         f"{OPEN_METEO_AIR_QUALITY_URL}?{query}",
-        headers={"User-Agent": "AerX/0.1 district-history-backfill"},
+        headers={"User-Agent": "ZephyrAQ/0.1 district-history-backfill"},
     )
 
     for attempt in range(3):

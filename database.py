@@ -608,7 +608,7 @@ def save_investigation(
         ) VALUES (%s, %s, %s, %s::jsonb)
     """
     action_description = (
-        f"Review the AerX evidence package for {district_name} before any public alert "
+        f"Review the ZephyrAQ evidence package for {district_name} before any public alert "
         "or operational response."
     )
     with psycopg.connect(get_database_url(), row_factory=dict_row) as connection:

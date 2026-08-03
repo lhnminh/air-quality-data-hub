@@ -1,5 +1,5 @@
 [project]
-name = "air-quality-data-hub"
+name = "zephyraq"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"

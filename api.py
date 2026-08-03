@@ -20,7 +20,7 @@ from database import (
 from districts import DISTRICTS
 from agent import run_district_agent
 
-app = FastAPI(title="AerX API")
+app = FastAPI(title="ZephyrAQ API")
 
 # The local frontend runs on port 3000. FRONTEND_URL can be changed later
 # when the frontend is deployed.
